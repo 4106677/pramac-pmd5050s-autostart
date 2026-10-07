@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 380" font-family="Helvetica,Arial,sans-serif" font-size="14">
+  <rect width="720" height="380" fill="#ffffff"/>
+  <text x="360" y="28" text-anchor="middle" font-size="18" font-weight="bold">Зовнішній контакт «старт/стоп» → ESP32</text>
+  <rect x="470" y="60" width="200" height="250" rx="8" fill="#eef3f8" stroke="#34495e" stroke-width="2"/>
+  <text x="570" y="86" text-anchor="middle" font-weight="bold">ESP32 DevKit</text>
+  <circle cx="470" cy="150" r="5" fill="#34495e"/><text x="484" y="155">D25 (GPIO25)</text>
+  <circle cx="470" cy="250" r="5" fill="#34495e"/><text x="484" y="255">GND</text>
+  <circle cx="470" cy="110" r="5" fill="#34495e"/><text x="484" y="115">3V3</text>
+  <rect x="40" y="110" width="150" height="180" rx="8" fill="#fdf6e3" stroke="#8a6d3b" stroke-width="2"/>
+  <text x="115" y="136" text-anchor="middle" font-weight="bold">Сухий контакт</text>
+  <text x="115" y="156" text-anchor="middle" font-size="12">ATS / реле (без напруги)</text>
+  <circle cx="190" cy="180" r="5" fill="#8a6d3b"/><circle cx="190" cy="250" r="5" fill="#8a6d3b"/>
+  <line x1="100" y1="180" x2="125" y2="180" stroke="#8a6d3b" stroke-width="2"/>
+  <line x1="125" y1="180" x2="150" y2="205" stroke="#8a6d3b" stroke-width="2"/>
+  <line x1="150" y1="215" x2="190" y2="215" stroke="#8a6d3b" stroke-width="2" stroke-dasharray="0"/>
+  <line x1="190" y1="180" x2="190" y2="215" stroke="#8a6d3b" stroke-width="2"/>
+  <line x1="100" y1="180" x2="100" y2="250" stroke="#8a6d3b" stroke-width="2"/>
+  <line x1="100" y1="250" x2="190" y2="250" stroke="#8a6d3b" stroke-width="2"/>
+  <line x1="190" y1="180" x2="400" y2="180" stroke="#c0392b" stroke-width="2.5"/>
+  <line x1="400" y1="180" x2="400" y2="150" stroke="#c0392b" stroke-width="2.5"/>
+  <line x1="400" y1="150" x2="470" y2="150" stroke="#c0392b" stroke-width="2.5"/>
+  <line x1="190" y1="250" x2="470" y2="250" stroke="#2c3e50" stroke-width="2.5"/>
+  <text x="300" y="172" text-anchor="middle" fill="#c0392b">до D25</text>
+  <text x="330" y="270" text-anchor="middle" fill="#2c3e50">до GND</text>
+  <text x="360" y="340" text-anchor="middle" font-size="13">Замкнуто = GND = «потрібен запуск». Розімкнуто = стоп. Вхід: INPUT_PULLUP, inverted.</text>
+  <text x="360" y="362" text-anchor="middle" font-size="12" fill="#555">Довгий кабель: pull-up 4.7–10 кΩ до 3V3 + 1 kΩ послідовно + 100 нФ D25→GND.</text>
+</svg>

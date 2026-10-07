@@ -1,0 +1,25 @@
+# Картка Home Assistant для Pramac PMD5050S. Замініть entity_id на свої.
+type: grid
+cards:
+  - type: heading
+    heading: Генератор · Pramac PMD5050S
+    icon: mdi:engine
+  - type: gauge
+    entity: sensor.pramac_pmd5050s_oberti_dviguna
+    name: Обороты двигателя
+    unit: RPM
+    min: 0
+    max: 4000
+    needle: true
+    segments:
+      - { from: 0,    color: "#9e9e9e" }   # стоїть / стартер
+      - { from: 1000, color: "#ffa000" }   # розгін, просідання
+      - { from: 2800, color: "#43a047" }   # робочі ~3000 (50 Гц)
+      - { from: 3200, color: "#e53935" }   # перевищення
+  - type: entities
+    show_header_toggle: false
+    entities:
+      - { entity: binary_sensor.pramac_pmd5050s_dvigun_pratsiuie,    name: Двигатель работает }
+      - { entity: binary_sensor.pramac_pmd5050s_kontakt_start_stop,  name: Контакт старт/стоп }
+      - { entity: binary_sensor.pramac_pmd5050s_ne_vdalos_zavesti,   name: Ошибка запуска }
+      - { entity: sensor.pramac_pmd5050s_oberti_dviguna,             name: Обороты двигателя }
