@@ -63,6 +63,11 @@ ESPHome 2025.4.1. Константи: `pulses_per_rev`, `running_rpm_threshold`,
 ## Home Assistant
 Картка зі шкалою обертів і перемикачем: [`homeassistant/generator-card.yaml`](homeassistant/generator-card.yaml) (замініть entity_id на свої; для перемикача «Запуск з HA» варто увімкнути підтвердження натискання).
 
+## Корпус для друку (ABS)
+Основа + кришка + накладка над клемами, кріплення на стіну вушками, кришка на M3 з латунними вставками. Параметрична модель: [`enclosure/`](enclosure/) (STL, скрипт для Fusion, генератор на Python, інструкція).
+
+![Корпус](docs/enclosure.png)
+
 ## Замовлення плати
 Для PCBWay: 2 шари, 1,6 мм, мідь **2 oz** (шина 10 А), HASL без свинцю, файл `pramac_carrier_gerbers.zip`. Майже всі компоненти виводні (THT), тож плату зручно паяти вручну; готові модулі (ESP32 DevKit, RM20S) ставляться як є.
 
