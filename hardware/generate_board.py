@@ -6,7 +6,7 @@ from pcbnew import VECTOR2I, FromMM, ToMM
 
 LIB = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints/"
 OUT = sys.argv[1] if len(sys.argv) > 1 else "pramac_carrier.kicad_pcb"
-BW, BH = 122.0, 94.0
+BW, BH = 118.0, 94.0
 G = 0.25           # router grid, mm
 CLR = 0.25         # routing clearance (DRC min is 0.2)
 EDGE = 0.8         # keep tracks away from board edge
@@ -50,7 +50,7 @@ def outline():
         s.SetStart(VECTOR2I(FromMM(a), FromMM(b))); s.SetEnd(VECTOR2I(FromMM(c), FromMM(d)))
         board.Add(s)
 outline()
-for i, (x, y) in enumerate([(4, 4), (BW - 4, 4), (4, BH - 6), (95, BH - 5)], 1):
+for i, (x, y) in enumerate([(4, 4), (BW - 4, 4), (4, 72), (91, BH - 5)], 1):
     place("H%d" % i, "MountingHole", "MountingHole_3.2mm_M3", x, y, value="M3")
 
 # ---------------- components ----------------
@@ -76,7 +76,7 @@ place("J6", *TB2, 110.5, TY, value="CONTACTOR (relay K3 dry COM/NO, 230V)")
 place("F1", "Fuse", "Fuse_Littelfuse_372_D8.50mm", 19.5, 44, value="KLS5-102-5RT-020H 2A slow")
 place("C1", "Capacitor_THT", "CP_Radial_D18.0mm_P7.50mm", 10, 20, value="4700u 25V")
 place("C2", "Capacitor_THT", "CP_Radial_D18.0mm_P7.50mm", 32, 20, value="4700u 25V")
-place("D3", *D15V, 44, 34, value="P6KE36A (P6KE20A recommended)")
+place("D3", *D15V, 39, 37, value="P6KE36A (P6KE20A recommended)")
 place("D1", *D201V, 52, 28, 180, value="1N5821")
 place("RM1", *HDR3, 50, 12, value="Favotek RM20S-050 SIP-3: 1 +VIN, 2 GND, 3 +VOUT")
 for _p in FP["RM1"].Pads():            # datasheet: pitch 2.54, hole 1.2
@@ -128,6 +128,14 @@ for _r in ("J1", "J4", "J5", "J2", "J6"):
         _p.SetDrillSize(VECTOR2I(FromMM(1.4), FromMM(1.4)))
         _ps = 2.4 if _r == 'J6' else 2.6
         _p.SetSize(VECTOR2I(FromMM(_ps), FromMM(_ps)))
+
+# ---- compaction: move everything right of the VBATT bus 4 mm to the left ----
+_SH4 = ["J1","J4","J5","J2","J6","F1","K1","K2","K3","Q1","Rb1","Rp1","D6","Q2","Rb2","Rp2","D7","Q3","Rg3","Rp3","D8",
+        "R1","C3","D4","D5","Rb3","Rv1","Rv2","U3","R4","R5","C5","R6","C6","U1A","U1B","J3"]
+for _r in _SH4:
+    _p = FP[_r].GetPosition(); FP[_r].SetPosition(VECTOR2I(_p.x - FromMM(4), _p.y))
+for _r, (_x, _y) in {"D1": (51, 31), "D2": (60.5, 25), "SC1": (58, 32)}.items():
+    FP[_r].SetPosition(VECTOR2I(FromMM(_x), FromMM(_y)))
 
 # ---------------- netlist ----------------
 for ref, n in [("J1", {1: "GND", 2: "VBATT"}), ("J4", {1: "VBATT", 2: "GND"}),
@@ -337,7 +345,7 @@ poly("START_OUT", [k2no, (k2no[0], 76.0), (j52[0], 76.0), j52], 4.0)
 k3c, k3n = P("K3", 1), P("K3", 3)
 j61, j62 = P("J6", 1), P("J6", 2)
 poly("CT_COM", [k3c, (k3c[0], 52.5), (j61[0], 52.5), j61], 1.5)
-poly("CT_NO", [k3n, (118.8, k3n[1]), (118.8, 79.0), (j62[0], 79.0), j62], 1.5)
+poly("CT_NO", [k3n, (114.8, k3n[1]), (114.8, 79.0), (j62[0], 79.0), j62], 1.5)
 
 # routing order: signals first, power later
 order = [
@@ -424,9 +432,9 @@ for ref, a, b, lab in [("J2", 2, 3, "REMOTE"), ("J6", 1, 2, "CONTACTOR")]:
     xa, xb = pinx(ref, a), pinx(ref, b)
     sline((xa - 1.2, LY - 1.6), (xb + 1.2, LY - 1.6)); sline((xa - 1.2, LY - 1.6), (xa - 1.2, LY - 2.4)); sline((xb + 1.2, LY - 1.6), (xb + 1.2, LY - 2.4))
     text(lab, (xa + xb) / 2.0, LY, 1.0)
-text("K1 ACC", 28, 51.0, 0.9); text("K2 START", 58, 51.0, 0.9); text("K3 CONTACTOR", 107.5, 26.4, 0.9)
-for k, lab in enumerate(["5V", "D18", "D19", "GND"]): text(lab, 105.0, 8 + 2.54 * k, 0.8)
-text("J3 SPARE", 104.0, 4.6, 0.8)
+text("K1 ACC", 24, 51.0, 0.9); text("K2 START", 54, 51.0, 0.9); text("K3 CONTACTOR", 103.5, 26.4, 0.9)
+for k, lab in enumerate(["5V", "D18", "D19", "GND"]): text(lab, 101.0, 8 + 2.54 * k, 0.8)
+text("J3 SPARE", 100.0, 4.6, 0.8)
 text("Pramac autostart v4", 26, 3.4, 1.0)
 
 # ---- back side: QR code (light modules printed, dark = bare mask), GitHub mark, nick ----
@@ -434,7 +442,7 @@ BS = pcbnew.B_SilkS
 rows = [l.strip() for l in open("qr.txt") if l.strip()]
 core = [r_[1:-1] for r_ in rows[1:-1]]          # drop 1-module border of CoreImage output
 NQ = len(core); BORDER = 2; TOT = NQ + 2 * BORDER; M = 0.55
-qx0, qy0 = 72.4, 6.0
+qx0, qy0 = 68.4, 6.0
 def dark(c, r_):
     c -= BORDER; r_ -= BORDER
     return 0 <= c < NQ and 0 <= r_ < NQ and core[r_][c] == "1"
@@ -480,12 +488,12 @@ def logo_points(d):
         elif cmd == "z": break
     return pts
 lp = logo_points(LOGO)
-LS = 9.0 / 16.0; lx0, ly0 = 72.4, 28.5
+LS = 9.0 / 16.0; lx0, ly0 = 68.4, 28.5
 poly = pcbnew.PCB_SHAPE(board); poly.SetShape(pcbnew.SHAPE_T_POLY); poly.SetLayer(BS); poly.SetFilled(True); poly.SetWidth(0)
 poly.SetPolyPoints([VECTOR2I(FromMM(lx0 + (16 - px) * LS), FromMM(ly0 + py * LS)) for px, py in lp]); board.Add(poly)
-text("4106677", 87.6, 32.2, 1.6, BS, True, 0.25)
-text("github.com/4106677", 82.5, 40.2, 0.9, BS, True, 0.15)
-text("pramac-pmd5050s-autostart", 82.5, 42.2, 0.8, BS, True, 0.15)
+text("4106677", 83.6, 32.2, 1.6, BS, True, 0.25)
+text("github.com/4106677", 78.5, 40.2, 0.9, BS, True, 0.15)
+text("pramac-pmd5050s-autostart", 78.5, 42.2, 0.8, BS, True, 0.15)
 
 for r in ("K1","K2","K3","J5","J6","Q1","Q2","Q3","Rb1","Rb2","Rg3","Rp1","Rp2","Rp3","D6","D7","D8","RM1","Rv1","Rv2","F1","C1","C2","D1","D2","D3","H1","H2","H3","H4","J1","J2","J3","J4","SC1","R1","R4","R5","R6","Rb3","C3","C5","C6","D4","D5","U3"):
     if r in FP: FP[r].Reference().SetVisible(False)

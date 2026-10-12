@@ -38,7 +38,7 @@ ESPHome 2025.4.1. Константи `pulses_per_rev` та `running_rpm_threshol
 Картка зі шкалою обертів: [`homeassistant/generator-card.yaml`](homeassistant/generator-card.yaml) (замініть entity_id на свої).
 
 ## Плата (KiCad, v4)
-Плата-носій 122×94 мм, 2 шари, суцільна земля, DRC без електричних порушень (KiCad 10.0.6). Файли — в [`hardware/`](hardware/):
+Плата-носій 118×94 мм, 2 шари, суцільна земля, DRC без електричних порушень (KiCad 10.0.6). Файли — в [`hardware/`](hardware/):
 `pramac_carrier.kicad_pcb`, `pramac_carrier_gerbers.zip` (для PCBWay), `fit_check_1to1.pdf` (роздрукувати 1:1 і приміряти), [`BOM.md`](hardware/BOM.md) (повний список компонентів), `pramac_carrier.kicad_dru` (правило зазору 2,5 мм для мережевих ланцюгів), `generate_board.py` + `qr.txt` (генератор плати через `pcbnew`).
 
 ![Плата, верх](docs/pcb-top.png)
