@@ -51,7 +51,7 @@ PARAMS = [
     ('open_h', '15', 'lid opening height'),
     ('cover_w', '100', 'cover plate width'),
     ('cover_top_y', '60', 'cover top edge on the PCB (y from the PCB top)'),
-    ('cover_bottom', '4.5', 'cover bottom edge above the lid edge'),
+    ('cover_bottom', '12', 'cover bottom edge above the lid edge'),
     ('cover_t', '2.4', 'cover plate thickness'),
     ('cover_r', '4', 'cover corner radius'),
     ('cover_gap', '0.25', 'cover pocket clearance'),
@@ -443,9 +443,9 @@ def run(context):
         def emblem():
             """Hazard triangle (raised 0.6 mm) with a lightning bolt, centred on the cover."""
             cxm = V['cover_x0'] + V['cover_w'] / 2
-            cym = V['cover_y0'] + (V['cover_y1'] - V['cover_y0']) * 0.62
+            cym = V['cover_y0'] + (V['cover_y1'] - V['cover_y0']) * 0.52
             s2 = root.sketches.add(pl_cov_top); s2.name = 'Emblem'
-            R = 15.0
+            R = 12.0
             outer = [(0, R), (-R * 0.866, -R * 0.5), (R * 0.866, -R * 0.5)]
             k = 0.62
             inner = [(0, R * k), (-R * 0.866 * k, -R * 0.5 * k), (R * 0.866 * k, -R * 0.5 * k)]
@@ -454,7 +454,7 @@ def run(context):
                     a, b = tri[i], tri[(i + 1) % 3]
                     s2.sketchCurves.sketchLines.addByTwoPoints(P3(cxm + a[0], cym + a[1]), P3(cxm + b[0], cym + b[1]))
             bolt = [(1.2, 5.0), (-3.0, -0.4), (-0.4, -0.4), (-1.6, -5.2), (3.2, 0.9), (0.5, 0.9)]
-            sc = 1.3
+            sc = 1.05
             for i in range(len(bolt)):
                 a, b = bolt[i], bolt[(i + 1) % len(bolt)]
                 s2.sketchCurves.sketchLines.addByTwoPoints(P3(cxm + a[0] * sc, cym + a[1] * sc - 1.5),

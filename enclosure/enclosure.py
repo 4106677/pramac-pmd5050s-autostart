@@ -26,7 +26,7 @@ P = dict(
     # wire slots in the bottom wall, one per terminal block (J1, J4, J5, J6 contactor, J2), PCB x ranges
     slots=[(3.6, 13.0), (16.2, 25.6), (28.2, 37.5), (57.8, 67.2), (77.3, 91.7)], slot_z0=4.0, slot_h=22.0,
     term_y=72.0, opening_x=(2.5, 93.0), opening_h=15.0,      # lid opening above the terminal screws (PCB coords)
-    cover_w=100.0, cover_top_y=60.0, cover_bottom=4.5,       # cover: width, top edge (PCB y), bottom edge above the lid edge
+    cover_w=100.0, cover_top_y=60.0, cover_bottom=12.0,       # cover: width, top edge (PCB y), bottom edge above the lid edge
     cover_t=2.4, cover_r=4.0, cover_gap=0.25, cover_boss_d=6.5, cover_boss_h=6.0, peg_d=3.0, peg_l=1.6,
     vent_n=6, vent_w=2.0, vent_l=24.0, vent_pitch=10.0, vent_z=30.0,
     ear_w=14.0, ear_l=16.0, ear_t=3.2, ear_hole=5.2,
@@ -199,11 +199,11 @@ def make_cover():
     for (cx, cy) in cover_pegs_xy():                      # pegs on the underside
         m = m + cyl(cx, cy, -P['peg_l'], P['peg_l'] + 0.01, P['peg_d'], 24)
     # hazard emblem (raised 0.6 mm): rounded triangle ring + lightning bolt
-    s = 24.0
+    s = 19.0
     tri = np.array([[0, s * 0.62], [-s * 0.62 * 0.866 * 1.15, -s * 0.31], [s * 0.62 * 0.866 * 1.15, -s * 0.31]])
     ring = CrossSection([tri]).offset(1.4, JoinType.Round, 2.0, 32) - CrossSection([tri]).offset(-1.4, JoinType.Round, 2.0, 32)
-    bolt = np.array([[1.2, 5.2], [-3.2, -0.4], [-0.4, -0.4], [-1.6, -5.4], [3.4, 0.9], [0.5, 0.9]]) * 1.5
-    cx, cy = x0 + w / 2, y0 + h * 0.62
+    bolt = np.array([[1.2, 5.2], [-3.2, -0.4], [-0.4, -0.4], [-1.6, -5.4], [3.4, 0.9], [0.5, 0.9]]) * 1.2
+    cx, cy = x0 + w / 2, y0 + h * 0.52
     emb = prism(ring, 0, 0.6) + prism(CrossSection([bolt]), 0, 0.6)
     m = m + emb.translate([cx, cy, ct - 0.01])
     return m
