@@ -8,6 +8,9 @@ substitutions:
   # Поріг "двигун працює", об/хв. Стартер крутить ~200-400 об/хв, двигун
   # на роботі ~3000 об/хв, тому 1000 надійно відділяє одне від одного.
   running_rpm_threshold: "1000"
+  # Контактор: прогрів двигуна перед підключенням навантаження і пауза перед зупинкою.
+  warmup_s: "40"
+  cooldown_s: "3"
 
 esphome:
   name: pramac-pmd5050s
@@ -56,7 +59,7 @@ globals:
     initial_value: '0'
 
 # ---------------------------------------------------------------------------
-# Реле-модуль: D2 = ACC, D4 = START
+# Реле на платі (NPN-драйвер, активний HIGH): D2 = ACC, D4 = START, D26 = контактор
 # ---------------------------------------------------------------------------
 switch:
   - platform: gpio
@@ -64,7 +67,7 @@ switch:
     name: "Реле ACC"
     pin:
       number: GPIO2          # D2 на платі (там же світлодіод D2)
-      inverted: false        # якщо реле-модуль активується LOW — поставте inverted: true
+      inverted: false        # NPN-драйвер на платі: HIGH = реле увімкнене, LOW (і при завантаженні) = вимкнене
     restore_mode: ALWAYS_OFF
 
   - platform: gpio
@@ -72,8 +75,38 @@ switch:
     name: "Реле START"
     pin:
       number: GPIO4          # D4 на платі
-      inverted: false        # те саме застереження, що й для ACC
+      inverted: false        # те саме, що й для ACC
     restore_mode: ALWAYS_OFF
+
+  # Реле контактора (K3, сухі COM/NO на котушку 230 В). Керується тільки логікою нижче, в HA не публікується.
+  - platform: gpio
+    id: relay_contactor
+    internal: true
+    pin:
+      number: GPIO26         # D26 на платі
+      inverted: false
+    restore_mode: ALWAYS_OFF
+
+  # Запуск/зупинка з Home Assistant. Працює як віртуальний "замкнений контакт".
+  # ALWAYS_OFF: після перезавантаження плати запит з HA скидається (двигун сам не стартує).
+  - platform: template
+    id: ha_run_request
+    name: "Запуск з HA"
+    icon: "mdi:engine"
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    turn_on_action:
+      - logger.log: "Запит запуску з HA"
+      - script.stop: stop_sequence
+      - script.execute: start_sequence
+    turn_off_action:
+      - logger.log: "Запит зупинки з HA"
+      # Фізичний контакт має пріоритет: якщо він замкнений, двигун лишається працювати.
+      - if:
+          condition:
+            binary_sensor.is_off: start_stop_contact
+          then:
+            - script.execute: stop_sequence
 
 binary_sensor:
   # Зовнішні сухі контакти "старт/стоп"
@@ -89,13 +122,15 @@ binary_sensor:
       - delayed_off: 50ms
     on_press:
       then:
+        - script.stop: stop_sequence
         - script.execute: start_sequence
     on_release:
       then:
-        - script.stop: start_sequence
-        - switch.turn_off: relay_start
-        - switch.turn_off: relay_acc
-        - lambda: 'id(start_failed).publish_state(false);'
+        - if:
+            condition:
+              switch.is_off: ha_run_request
+            then:
+              - script.execute: stop_sequence
 
   # "Двигун працює" — оберти вищі за поріг (running_rpm_threshold).
   - platform: template
@@ -107,12 +142,23 @@ binary_sensor:
       - delayed_off: 3s       # не реагувати на короткі провали імпульсів
     on_release:
       then:
+        # Двигун зупинився: навантаження одразу відключаємо.
+        - switch.turn_off: relay_contactor
         - if:
             condition:
-              binary_sensor.is_on: start_stop_contact
+              or:
+                - binary_sensor.is_on: start_stop_contact
+                - switch.is_on: ha_run_request
             then:
               - logger.log: "Несподівана зупинка двигуна — пробуємо перезапуск"
               - script.execute: start_sequence
+
+  # Контактор замкнений (стан реле K3)
+  - platform: template
+    id: contactor_closed
+    name: "Контактор замкнений"
+    lambda: |-
+      return id(relay_contactor).state;
 
   # Прапорець невдалого запуску — видно в Home Assistant
   - platform: template
@@ -170,8 +216,21 @@ sensor:
 # Логіка запуску: ACC → пауза → до 3 спроб прокрутки з очікуванням оборотів
 # ---------------------------------------------------------------------------
 script:
+  # Зупинка: спочатку розмикаємо контактор, через cooldown_s знімаємо ACC (двигун глухне).
+  - id: stop_sequence
+    mode: restart
+    then:
+      - logger.log: "СТОП: розмикаємо контактор"
+      - script.stop: start_sequence
+      - switch.turn_off: relay_start
+      - switch.turn_off: relay_contactor
+      - delay: ${cooldown_s}s
+      - logger.log: "СТОП: знімаємо ACC"
+      - switch.turn_off: relay_acc
+      - lambda: 'id(start_failed).publish_state(false);'
+
   - id: start_sequence
-    mode: single
+    mode: restart      # якщо двигун зупинився під час прогріву — послідовність починається заново
     then:
       - lambda: 'id(start_failed).publish_state(false);'
       - globals.set:
@@ -209,7 +268,19 @@ script:
           condition:
             binary_sensor.is_on: engine_running
           then:
-            - logger.log: "Двигун запущено"
+            - logger.log: "Двигун запущено, прогрів ${warmup_s} с"
+            # Чекаємо прогрів; якщо двигун зупиниться раніше, умова спрацює і контактор не замкнеться.
+            - wait_until:
+                condition:
+                  not:
+                    binary_sensor.is_on: engine_running
+                timeout: ${warmup_s}s
+            - if:
+                condition:
+                  binary_sensor.is_on: engine_running
+                then:
+                  - logger.log: "Прогрів завершено — замикаємо контактор"
+                  - switch.turn_on: relay_contactor
           else:
             - logger.log: "Не вдалось завести за 3 спроби"
             - lambda: 'id(start_failed).publish_state(true);'

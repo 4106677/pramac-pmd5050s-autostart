@@ -6,7 +6,7 @@ from pcbnew import VECTOR2I, FromMM, ToMM
 
 LIB = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints/"
 OUT = sys.argv[1] if len(sys.argv) > 1 else "pramac_carrier.kicad_pcb"
-BW, BH = 112.0, 92.0
+BW, BH = 122.0, 94.0
 G = 0.25           # router grid, mm
 CLR = 0.25         # routing clearance (DRC min is 0.2)
 EDGE = 0.8         # keep tracks away from board edge
@@ -50,7 +50,7 @@ def outline():
         s.SetStart(VECTOR2I(FromMM(a), FromMM(b))); s.SetEnd(VECTOR2I(FromMM(c), FromMM(d)))
         board.Add(s)
 outline()
-for i, (x, y) in enumerate([(4, 4), (BW - 4, 4), (4, BH - 4), (BW - 4, BH - 4)], 1):
+for i, (x, y) in enumerate([(4, 4), (BW - 4, 4), (4, BH - 6), (95, BH - 5)], 1):
     place("H%d" % i, "MountingHole", "MountingHole_3.2mm_M3", x, y, value="M3")
 
 # ---------------- components ----------------
@@ -70,9 +70,10 @@ TY = 84
 place("J1", *TB2, 11, TY, value="BATT- / BATT+")
 place("J4", *TB2, 23, TY, value="CHARGER +12V / GND")
 place("J5", *TB2, 35, TY, value="ACC OUT / START OUT (relay NO)")
-place("J2", *TB3, 72, TY, value="TAHO / REMOTE 1 / REMOTE 2")
+place("J2", *TB3, 72, TY, value="TAHO / REMOTE")
+place("J6", *TB2, 110.5, TY, value="CONTACTOR (relay K3 dry COM/NO, 230V)")
 # power
-place("F1", "Fuse", "Fuseholder_Cylinder-5x20mm_Schurter_0031_8201_Horizontal_Open", 19.5, 42, value="Fuse 5x20 T2A")
+place("F1", "Fuse", "Fuse_Littelfuse_372_D8.50mm", 19.5, 44, value="KLS5-102-5RT-020H 2A slow")
 place("C1", "Capacitor_THT", "CP_Radial_D18.0mm_P7.50mm", 10, 20, value="4700u 25V")
 place("C2", "Capacitor_THT", "CP_Radial_D18.0mm_P7.50mm", 32, 20, value="4700u 25V")
 place("D3", *D15V, 44, 34, value="P6KE36A (P6KE20A recommended)")
@@ -88,10 +89,11 @@ place("SC1", *HDR2, 60, 32, value="Supercap 1F 5.5V +/-")
 # ESP32 30-pin DevKit V1 sockets, row spacing 25.4 mm
 place("U1A", "Connector_PinSocket_2.54mm", "PinSocket_1x15_P2.54mm_Vertical", 70, 6, value="ESP32 left")
 place("U1B", "Connector_PinSocket_2.54mm", "PinSocket_1x15_P2.54mm_Vertical", 95.4, 6, value="ESP32 right")
-place("J3", "Connector_PinHeader_2.54mm", "PinHeader_1x04_P2.54mm_Vertical", 102.5, 20, value="Spare relay module 5V/IN1(D18)/IN2(D19)/GND")
+place("J3", "Connector_PinHeader_2.54mm", "PinHeader_1x04_P2.54mm_Vertical", 101, 8, value="Spare relay module 5V/IN1(D18)/IN2(D19)/GND")
 # relays (rot 270: COM on top, contacts at the bottom)
 place("K1", *RELAY, 33, 56, 270, value="SRD-05VDC-SL-C ACC")
 place("K2", *RELAY, 63, 56, 270, value="SRD-05VDC-SL-C START")
+place("K3", *RELAY, 107.5, 48, 90, value="SRD-05VDC-SL-A CONTACTOR")
 # relay drivers in the gap between the relays
 place("Q1", *TO92, 43, 56, value="BC337")
 place("Rb1", *RV, 43, 60, value="1k")
@@ -101,6 +103,10 @@ place("Q2", *TO92, 49.5, 56, value="BC337")
 place("Rb2", *RV, 49.5, 60, value="1k")
 place("Rp2", *RV, 49.5, 64, value="10k")
 place("D7", *D35V, 49.5, 68, value="1N4148")
+place("Q3", *TO92, 84, 53, value="BC337")
+place("Rg3", *RV, 84, 57, value="1k")
+place("Rp3", *RV, 90.5, 57, value="10k")
+place("D8", *D35V, 90.5, 53, value="1N4148")
 # TAHO conditioning
 place("R1", *RV, 74, 70, value="22k")
 place("C3", "Capacitor_THT", "CP_Radial_D5.0mm_P2.00mm", 80, 70.5, value="10u 16V NP")
@@ -109,18 +115,19 @@ place("D5", *D35V, 80.5, 75, 180, value="BZX55C5V1")
 place("Rb3", *RV, 86, 66, value="10k")
 place("Rv1", *RV, 86, 70, value="10k")
 place("Rv2", *RV, 92, 70, value="10k")
-place("U3", "Package_DIP", "DIP-8_W7.62mm_Socket", 98, 62, value="LM393")
-place("R4", *RV, 92, 60, value="100k")
-place("R5", *RV, 92, 64, value="4.7k")
-place("C5", "Capacitor_SMD", "C_0805_2012Metric", 102, 74, 90, value="100n")
+place("U3", "Package_DIP", "DIP-8_W7.62mm_Socket", 98, 64.5, value="LM393")
+place("R4", *RV, 92, 62, value="100k")
+place("R5", *RV, 92, 66, value="4.7k")
+place("C5", "Capacitor_SMD", "C_0805_2012Metric", 103, 77, 90, value="100n")
 place("R6", *RV, 88, 78, value="1k")
 place("C6", "Capacitor_SMD", "C_0805_2012Metric", 96, 78, 90, value="100n")
 
 # DG128-5.0 datasheet: pitch 5.0, drill 1.4 mm
-for _r in ("J1", "J4", "J5", "J2"):
+for _r in ("J1", "J4", "J5", "J2", "J6"):
     for _p in FP[_r].Pads():
         _p.SetDrillSize(VECTOR2I(FromMM(1.4), FromMM(1.4)))
-        _p.SetSize(VECTOR2I(FromMM(max(2.6, ToMM(_p.GetSizeX()))), FromMM(max(2.6, ToMM(_p.GetSizeY())))))
+        _ps = 2.4 if _r == 'J6' else 2.6
+        _p.SetSize(VECTOR2I(FromMM(_ps), FromMM(_ps)))
 
 # ---------------- netlist ----------------
 for ref, n in [("J1", {1: "GND", 2: "VBATT"}), ("J4", {1: "VBATT", 2: "GND"}),
@@ -134,6 +141,8 @@ for ref, n in [("J1", {1: "GND", 2: "VBATT"}), ("J4", {1: "VBATT", 2: "GND"}),
                ("J3", {1: "NODE_B", 2: "EXT1", 3: "EXT2", 4: "GND"}),
                ("K1", {1: "VBATT", 2: "NODE_B", 3: "ACC_OUT", 5: "COIL_ACC"}),
                ("K2", {1: "VBATT", 5: "NODE_B", 3: "START_OUT", 2: "COIL_START"}),
+               ("K3", {1: "CT_COM", 3: "CT_NO", 5: "NODE_B", 2: "COIL_CONT"}), ("J6", {1: "CT_COM", 2: "CT_NO"}),
+               ("Q3", {1: "COIL_CONT", 2: "BASE_CONT", 3: "GND"}), ("Rg3", {1: "CONT", 2: "BASE_CONT"}), ("Rp3", {1: "BASE_CONT", 2: "GND"}), ("D8", {1: "NODE_B", 2: "COIL_CONT"}),
                ("J5", {1: "ACC_OUT", 2: "START_OUT"}),
                ("Q1", {1: "COIL_ACC", 2: "BASE_ACC", 3: "GND"}), ("Rb1", {1: "ACC", 2: "BASE_ACC"}), ("Rp1", {1: "BASE_ACC", 2: "GND"}),
                ("D6", {1: "NODE_B", 2: "COIL_ACC"}),
@@ -149,7 +158,7 @@ for ref, n in [("J1", {1: "GND", 2: "VBATT"}), ("J4", {1: "VBATT", 2: "GND"}),
                ("R4", {1: "CMP_OUT", 2: "VB"}), ("R5", {1: "CMP_OUT", 2: "3V3"}),
                ("C5", {1: "3V3", 2: "GND"}),
                ("R6", {1: "CONTACT", 2: "D25"}), ("C6", {1: "D25", 2: "GND"}),
-               ("U1A", {8: "D25", 11: "CMP_OUT", 14: "GND", 15: "NODE_B"}),
+               ("U1A", {8: "D25", 9: "CONT", 11: "CMP_OUT", 14: "GND", 15: "NODE_B"}),
                ("U1B", {6: "EXT2", 7: "EXT1", 11: "START", 12: "ACC", 14: "GND", 15: "3V3"}),
                ]:
     for k, v in n.items():
@@ -162,6 +171,8 @@ WIDTH = {n: 1.5 for n in POWER}
 
 DEFW = 0.4
 obst = {F: [], B: []}     # (xmin,ymin,xmax,ymax,netname)
+MAINS = {'CT_COM', 'CT_NO'}
+EXTRA = 2.25   # mains clearance 2.5 mm instead of 0.25
 
 def pad_layers(p):
     ls = []
@@ -172,7 +183,8 @@ def pad_layers(p):
 for fp in FP.values():
     for p in fp.Pads():
         bb = p.GetBoundingBox()
-        r = (ToMM(bb.GetLeft()), ToMM(bb.GetTop()), ToMM(bb.GetRight()), ToMM(bb.GetBottom()), p.GetNetname() or "")
+        _e = EXTRA if (p.GetNetname() in MAINS) else 0
+        r = (ToMM(bb.GetLeft()) - _e, ToMM(bb.GetTop()) - _e, ToMM(bb.GetRight()) + _e, ToMM(bb.GetBottom()) + _e, p.GetNetname() or "")
         for l in pad_layers(p): obst[l].append(r)
 # board edge
 for l in (F, B):
@@ -203,7 +215,7 @@ def add_track(n, layer, a, b, w):
     t.SetStart(VECTOR2I(FromMM(a[0]), FromMM(a[1]))); t.SetEnd(VECTOR2I(FromMM(b[0]), FromMM(b[1])))
     t.SetWidth(FromMM(w)); t.SetLayer(layer); t.SetNet(net(n)); board.Add(t)
     tracks_by_net.setdefault(n, []).append((layer, a, b))
-    h = w / 2
+    h = w / 2 + (EXTRA if n in MAINS else 0)
     obst[layer].append((min(a[0], b[0]) - h, min(a[1], b[1]) - h, max(a[0], b[0]) + h, max(a[1], b[1]) + h, n))
 
 def add_via(n, p):
@@ -321,6 +333,11 @@ k1no, k2no = P("K1", 3), P("K2", 3)
 j51, j52 = P("J5", 1), P("J5", 2)
 poly("ACC_OUT", [k1no, (k1no[0], 76.0), (j51[0], 76.0), j51], 4.0)
 poly("START_OUT", [k2no, (k2no[0], 76.0), (j52[0], 76.0), j52], 4.0)
+# contactor relay K3: dry COM/NO to J6 (230 V class, 2.5 mm clearance)
+k3c, k3n = P("K3", 1), P("K3", 3)
+j61, j62 = P("J6", 1), P("J6", 2)
+poly("CT_COM", [k3c, (k3c[0], 52.5), (j61[0], 52.5), j61], 1.5)
+poly("CT_NO", [k3n, (118.8, k3n[1]), (118.8, 79.0), (j62[0], 79.0), j62], 1.5)
 
 # routing order: signals first, power later
 order = [
@@ -339,13 +356,16 @@ order = [
     ("BASE_START", [("Rb2", 2), ("Q2", 2), ("Rp2", 1)], (F, B)),
     ("ACC", [("U1B", 12), ("Rb1", 1)], (F, B)),
     ("START", [("U1B", 11), ("Rb2", 1)], (F, B)),
+    ("CONT", [("U1A", 9), ("Rg3", 1)], (F, B)),
+    ("BASE_CONT", [("Rg3", 2), ("Q3", 2), ("Rp3", 1)], (F, B)),
+    ("COIL_CONT", [("K3", 2), ("Q3", 1), ("D8", 2)], (F, B)),
     ("EXT1", [("U1B", 7), ("J3", 2)], (F, B)),
     ("EXT2", [("U1B", 6), ("J3", 3)], (F, B)),
     ("3V3", [("U1B", 15), ("Rv1", 2), ("R5", 2), ("U3", 8), ("C5", 1)], (F, B)),
     ("VBF", [("F1", 2), ("D3", 1), ("D1", 2)], (F,)),
     ("NODE_A", [("D1", 1), ("C2", 1), ("C1", 1), ("RM1", 1)], (F,)),
     ("VBUCK", [("RM1", 3), ("D2", 2)], (F,)),
-    ("NODE_B", [("D2", 1), ("U1A", 15), ("J3", 1), ("SC1", 1), ("K1", 2), ("K2", 5), ("D6", 1), ("D7", 1)], (F, B)),
+    ("NODE_B", [("D2", 1), ("U1A", 15), ("J3", 1), ("SC1", 1), ("K1", 2), ("K2", 5), ("K3", 5), ("D6", 1), ("D7", 1), ("D8", 1)], (F, B)),
 ]
 allok = True
 for n, pl, ly in order:
@@ -362,22 +382,118 @@ def zone(layer):
     for (x, y) in [(0.5, 0.5), (BW - 0.5, 0.5), (BW - 0.5, BH - 0.5), (0.5, BH - 0.5)]:
         o.Append(FromMM(x), FromMM(y))
     board.Add(z)
+def keepout(layer, x0, y0, x1, y1):
+    z = pcbnew.ZONE(board); z.SetLayer(layer); z.SetIsRuleArea(True)
+    z.SetDoNotAllowZoneFills(True); z.SetDoNotAllowTracks(False); z.SetDoNotAllowVias(False); z.SetDoNotAllowPads(False); z.SetDoNotAllowFootprints(False)
+    o = z.Outline(); o.NewOutline()
+    for (x, y) in [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]: o.Append(FromMM(x), FromMM(y))
+    board.Add(z)
+for t in board.GetTracks():
+    if t.GetClass() == "PCB_TRACK" and t.GetNetname() in MAINS:
+        h = ToMM(t.GetWidth()) / 2 + 2.6
+        a_, b_ = t.GetStart(), t.GetEnd()
+        x0 = min(ToMM(a_.x), ToMM(b_.x)) - h; x1 = max(ToMM(a_.x), ToMM(b_.x)) + h
+        y0 = min(ToMM(a_.y), ToMM(b_.y)) - h; y1 = max(ToMM(a_.y), ToMM(b_.y)) + h
+        for l in (F, B): keepout(l, x0, y0, x1, y1)
+for ref_ in ("K3", "J6"):
+    for p_ in FP[ref_].Pads():
+        if p_.GetNetname() in MAINS:
+            c_ = p_.GetPosition()
+            for l in (F, B): keepout(l, ToMM(c_.x) - 4.1, ToMM(c_.y) - 4.1, ToMM(c_.x) + 4.1, ToMM(c_.y) + 4.1)
 zone(F); zone(B)
 pcbnew.ZONE_FILLER(board).Fill(board.Zones())
 
-# ---------------- silk labels ----------------
-def text(s, x, y, size=1.0):
-    t = pcbnew.PCB_TEXT(board); t.SetText(s); t.SetPosition(VECTOR2I(FromMM(x), FromMM(y)))
-    t.SetLayer(pcbnew.F_SilkS); t.SetTextSize(VECTOR2I(FromMM(size), FromMM(size)))
+# ---------------- silk ----------------
+import re, math
+def text(s_, x, y, size=1.0, layer=pcbnew.F_SilkS, mirror=False, thick=0.15):
+    t = pcbnew.PCB_TEXT(board); t.SetText(s_); t.SetPosition(VECTOR2I(FromMM(x), FromMM(y)))
+    t.SetLayer(layer); t.SetTextSize(VECTOR2I(FromMM(size), FromMM(size))); t.SetTextThickness(FromMM(thick))
+    if mirror: t.SetMirrored(True)
     board.Add(t)
-text("BATT- BATT+", 13.5, 90.6, 0.8); text("CHG+ CHG-", 25.5, 90.6, 0.8); text("ACC  START", 37.5, 90.6, 0.8)
-text("TAHO  REMOTE1  REMOTE2", 77, 90.6, 0.8)
-text("RM20S", 54, 14, 0.8)
-text("J3 SPARE", 104.5, 29.8, 0.8); text("5V D18 D19 GND", 104.5, 31.6, 0.8)
-text("Pramac autostart v3", 26, 3.4, 1.0)
-text("K1 ACC", 33, 77.2, 0.8); text("K2 START", 63, 77.2, 0.8)
-for r in ("K1","K2","J5","Q1","Q2","Rb1","Rb2","Rp1","Rp2","D6","D7","RM1","Rv1","Rv2","F1","C1","C2","D1","D2","D3","H1","H2","H3","H4","J1","J2","J3","J4","P1","P2","SC1","R1","R4","R5","R6","Rb1","Rb2","Rb3","C3","C5","C6","D4","D5","U3"):
+def sline(a, b, layer=pcbnew.F_SilkS, w=0.15):
+    l = pcbnew.PCB_SHAPE(board); l.SetShape(pcbnew.SHAPE_T_SEGMENT); l.SetLayer(layer); l.SetWidth(FromMM(w))
+    l.SetStart(VECTOR2I(FromMM(a[0]), FromMM(a[1]))); l.SetEnd(VECTOR2I(FromMM(b[0]), FromMM(b[1]))); board.Add(l)
+
+# terminal labels: one per pin, centred under the pin; two-pin functions get a bracket
+LY = TY + 8.0
+pinx = lambda ref, k: ToMM(pad(ref, k).GetPosition().x)
+for ref, k, lab in [("J1", 1, "BATT-"), ("J1", 2, "BATT+"), ("J4", 1, "CHG+"), ("J4", 2, "CHG-"),
+                    ("J5", 1, "ACC"), ("J5", 2, "START"), ("J2", 1, "TAHO")]:
+    text(lab, pinx(ref, k), LY, 1.0)
+for ref, a, b, lab in [("J2", 2, 3, "REMOTE"), ("J6", 1, 2, "CONTACTOR")]:
+    xa, xb = pinx(ref, a), pinx(ref, b)
+    sline((xa - 1.2, LY - 1.6), (xb + 1.2, LY - 1.6)); sline((xa - 1.2, LY - 1.6), (xa - 1.2, LY - 2.4)); sline((xb + 1.2, LY - 1.6), (xb + 1.2, LY - 2.4))
+    text(lab, (xa + xb) / 2.0, LY, 1.0)
+text("K1 ACC", 28, 51.0, 0.9); text("K2 START", 58, 51.0, 0.9); text("K3 CONTACTOR", 107.5, 26.4, 0.9)
+for k, lab in enumerate(["5V", "D18", "D19", "GND"]): text(lab, 105.0, 8 + 2.54 * k, 0.8)
+text("J3 SPARE", 104.0, 4.6, 0.8)
+text("Pramac autostart v4", 26, 3.4, 1.0)
+
+# ---- back side: QR code (light modules printed, dark = bare mask), GitHub mark, nick ----
+BS = pcbnew.B_SilkS
+rows = [l.strip() for l in open("qr.txt") if l.strip()]
+core = [r_[1:-1] for r_ in rows[1:-1]]          # drop 1-module border of CoreImage output
+NQ = len(core); BORDER = 2; TOT = NQ + 2 * BORDER; M = 0.55
+qx0, qy0 = 72.4, 6.0
+def dark(c, r_):
+    c -= BORDER; r_ -= BORDER
+    return 0 <= c < NQ and 0 <= r_ < NQ and core[r_][c] == "1"
+for r_ in range(TOT):
+    c = 0
+    while c < TOT:
+        if dark(c, r_): c += 1; continue
+        c0 = c
+        while c < TOT and not dark(c, r_): c += 1
+        c1 = c - 1
+        x_a = qx0 + (TOT - 1 - c1) * M; x_b = qx0 + (TOT - c0) * M          # mirrored for the back side
+        y_a = qy0 + r_ * M; y_b = qy0 + (r_ + 1) * M
+        rc = pcbnew.PCB_SHAPE(board); rc.SetShape(pcbnew.SHAPE_T_RECT); rc.SetLayer(BS); rc.SetWidth(0); rc.SetFilled(True)
+        rc.SetStart(VECTOR2I(FromMM(x_a), FromMM(y_a))); rc.SetEnd(VECTOR2I(FromMM(x_b), FromMM(y_b))); board.Add(rc)
+
+LOGO = "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+def logo_points(d):
+    toks = re.findall(r"[MCcAz]|-?\d*\.?\d+", d)
+    pts = []; i = 0; cur = (0.0, 0.0); cmd = None
+    def num():
+        nonlocal i; v = float(toks[i]); i += 1; return v
+    while i < len(toks):
+        if re.match(r"[MCcAz]", toks[i]): cmd = toks[i]; i += 1
+        if cmd == "M": cur = (num(), num()); pts.append(cur)
+        elif cmd in ("C", "c"):
+            if cmd == "C": c1 = (num(), num()); c2 = (num(), num()); e = (num(), num())
+            else:
+                c1 = (cur[0] + num(), cur[1] + num()); c2 = (cur[0] + num(), cur[1] + num()); e = (cur[0] + num(), cur[1] + num())
+            for t in [k / 8.0 for k in range(1, 9)]:
+                u = 1 - t
+                pts.append((u**3*cur[0] + 3*u*u*t*c1[0] + 3*u*t*t*c2[0] + t**3*e[0], u**3*cur[1] + 3*u*u*t*c1[1] + 3*u*t*t*c2[1] + t**3*e[1]))
+            cur = e
+        elif cmd == "A":
+            rx = num(); ry = num(); rot = num(); ft = toks[i]; i += 1
+            if len(ft) > 2: ex = float(ft[2:])
+            elif len(ft) == 2: ex = num()
+            else: i += 1; ex = num()
+            ey = num()
+            a0 = math.atan2(cur[1] - 8, cur[0] - 8); a1 = math.atan2(ey - 8, ex - 8)
+            if a1 > a0: a1 -= 2 * math.pi
+            for k in range(1, 13): pts.append((8 + rx * math.cos(a0 + (a1 - a0) * k / 12.0), 8 + rx * math.sin(a0 + (a1 - a0) * k / 12.0)))
+            cur = (ex, ey)
+        elif cmd == "z": break
+    return pts
+lp = logo_points(LOGO)
+LS = 9.0 / 16.0; lx0, ly0 = 72.4, 28.5
+poly = pcbnew.PCB_SHAPE(board); poly.SetShape(pcbnew.SHAPE_T_POLY); poly.SetLayer(BS); poly.SetFilled(True); poly.SetWidth(0)
+poly.SetPolyPoints([VECTOR2I(FromMM(lx0 + (16 - px) * LS), FromMM(ly0 + py * LS)) for px, py in lp]); board.Add(poly)
+text("4106677", 87.6, 32.2, 1.6, BS, True, 0.25)
+text("github.com/4106677", 82.5, 40.2, 0.9, BS, True, 0.15)
+text("pramac-pmd5050s-autostart", 82.5, 42.2, 0.8, BS, True, 0.15)
+
+for r in ("K1","K2","K3","J5","J6","Q1","Q2","Q3","Rb1","Rb2","Rg3","Rp1","Rp2","Rp3","D6","D7","D8","RM1","Rv1","Rv2","F1","C1","C2","D1","D2","D3","H1","H2","H3","H4","J1","J2","J3","J4","SC1","R1","R4","R5","R6","Rb3","C3","C5","C6","D4","D5","U3"):
     if r in FP: FP[r].Reference().SetVisible(False)
 for fp in FP.values(): fp.Value().SetVisible(False)
 pcbnew.SaveBoard(OUT, board)
+open(OUT.replace(".kicad_pcb", ".kicad_dru"), "w").write("""(version 1)
+(rule "mains_clearance"
+  (condition "A.NetName == 'CT_COM' || A.NetName == 'CT_NO' || B.NetName == 'CT_COM' || B.NetName == 'CT_NO'")
+  (constraint clearance (min 2.5mm)))
+""")
 print("saved", OUT, "all routed:", allok)
