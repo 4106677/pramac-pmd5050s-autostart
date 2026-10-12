@@ -6,7 +6,7 @@ from pcbnew import VECTOR2I, FromMM, ToMM
 
 LIB = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints/"
 OUT = sys.argv[1] if len(sys.argv) > 1 else "pramac_carrier.kicad_pcb"
-BW, BH = 135.0, 100.0
+BW, BH = 112.0, 92.0
 G = 0.25           # router grid, mm
 CLR = 0.25         # routing clearance (DRC min is 0.2)
 EDGE = 0.8         # keep tracks away from board edge
@@ -50,78 +50,116 @@ def outline():
         s.SetStart(VECTOR2I(FromMM(a), FromMM(b))); s.SetEnd(VECTOR2I(FromMM(c), FromMM(d)))
         board.Add(s)
 outline()
-for i, (x, y) in enumerate([(5, 5), (BW - 5, 5), (5, BH - 5), (BW - 5, BH - 5)], 1):
+for i, (x, y) in enumerate([(4, 4), (BW - 4, 4), (4, BH - 4), (BW - 4, BH - 4)], 1):
     place("H%d" % i, "MountingHole", "MountingHole_3.2mm_M3", x, y, value="M3")
 
 # ---------------- components ----------------
-TB2 = ("TerminalBlock_Phoenix", "TerminalBlock_Phoenix_MKDS-1,5-2-5.08_1x02_P5.08mm_Horizontal")
-TB3 = ("TerminalBlock_Phoenix", "TerminalBlock_Phoenix_MKDS-1,5-3-5.08_1x03_P5.08mm_Horizontal")
-R_ = lambda p: ("Resistor_THT", "R_Axial_DIN0207_L6.3mm_D2.5mm_P%.2fmm_Horizontal" % p)
+TB2 = ("TerminalBlock_Phoenix", "TerminalBlock_Phoenix_MKDS-1,5-2_1x02_P5.00mm_Horizontal")
+TB3 = ("TerminalBlock_Phoenix", "TerminalBlock_Phoenix_MKDS-1,5-3_1x03_P5.00mm_Horizontal")
+RV = ("Resistor_THT", "R_Axial_DIN0207_L6.3mm_D2.5mm_P2.54mm_Vertical")
+D15V = ("Diode_THT", "D_DO-15_P3.81mm_Vertical_CathodeUp")
+D201V = ("Diode_THT", "D_DO-201AD_P3.81mm_Vertical_CathodeUp")
+D35V = ("Diode_THT", "D_DO-35_SOD27_P2.54mm_Vertical_CathodeUp")
+HDR2 = ("Connector_PinHeader_2.54mm", "PinHeader_1x02_P2.54mm_Vertical")
+HDR3 = ("Connector_PinHeader_2.54mm", "PinHeader_1x03_P2.54mm_Vertical")
+RELAY = ("Relay_THT", "Relay_SPDT_SANYOU_SRD_Series_Form_C")
+TO92 = ("Package_TO_SOT_THT", "TO-92_Inline")
 
+# terminals along the bottom edge (wire entry towards the edge)
+TY = 84
+place("J1", *TB2, 11, TY, value="BATT- / BATT+")
+place("J4", *TB2, 23, TY, value="CHARGER +12V / GND")
+place("J5", *TB2, 35, TY, value="ACC OUT / START OUT (relay NO)")
+place("J2", *TB3, 72, TY, value="TAHO / REMOTE 1 / REMOTE 2")
 # power
-place("J1", *TB2, 16, 9, value="BATT+ / BATT-")
-place("F1", "Fuse", "Fuseholder_Cylinder-5x20mm_Schurter_0031_8201_Horizontal_Open", 10, 22, value="Fuse 5x20")
-place("D3", "Diode_THT", "D_DO-15_P12.70mm_Horizontal", 38, 22, value="P6KE36A")
-place("D1", "Diode_THT", "D_DO-201AD_P15.24mm_Horizontal", 53, 34, 180, value="1N5821")
-place("C1", "Capacitor_THT", "CP_Radial_D18.0mm_P7.50mm", 20, 50, value="4700u 25V")
-place("C2", "Capacitor_THT", "CP_Radial_D18.0mm_P7.50mm", 45, 50, value="4700u 25V")
-place("P1", "Connector_PinHeader_2.54mm", "PinHeader_1x02_P2.54mm_Vertical", 66, 40, value="LM2596 IN+/IN-")
-place("P2", "Connector_PinHeader_2.54mm", "PinHeader_1x02_P2.54mm_Vertical", 66, 52, value="LM2596 OUT+/OUT-")
-place("D2", "Diode_THT", "D_DO-201AD_P15.24mm_Horizontal", 88, 46, 180, value="1N5821")
-place("SC1", "Connector_PinHeader_2.54mm", "PinHeader_1x02_P2.54mm_Vertical", 80, 58, value="Supercap 1F 5.5V +/-")
+place("F1", "Fuse", "Fuseholder_Cylinder-5x20mm_Schurter_0031_8201_Horizontal_Open", 19.5, 42, value="Fuse 5x20 T2A")
+place("C1", "Capacitor_THT", "CP_Radial_D18.0mm_P7.50mm", 10, 20, value="4700u 25V")
+place("C2", "Capacitor_THT", "CP_Radial_D18.0mm_P7.50mm", 32, 20, value="4700u 25V")
+place("D3", *D15V, 44, 34, value="P6KE36A (P6KE20A recommended)")
+place("D1", *D201V, 52, 28, 180, value="1N5821")
+place("RM1", *HDR3, 50, 12, value="Favotek RM20S-050 SIP-3: 1 +VIN, 2 GND, 3 +VOUT")
+for _p in FP["RM1"].Pads():            # datasheet: pitch 2.54, hole 1.2
+    _p.SetSize(VECTOR2I(FromMM(2.0), FromMM(2.0))); _p.SetDrillSize(VECTOR2I(FromMM(1.2), FromMM(1.2)))
+_r = pcbnew.PCB_SHAPE(board); _r.SetShape(pcbnew.SHAPE_T_RECT); _r.SetLayer(pcbnew.F_SilkS); _r.SetWidth(FromMM(0.15))
+_r.SetStart(VECTOR2I(FromMM(50 - 2.15), FromMM(14.54 - 5.75))); _r.SetEnd(VECTOR2I(FromMM(50 + 6.85), FromMM(14.54 + 5.75)))
+board.Add(_r)
+place("D2", *D201V, 62, 26, 180, value="1N5821")
+place("SC1", *HDR2, 60, 32, value="Supercap 1F 5.5V +/-")
 # ESP32 30-pin DevKit V1 sockets, row spacing 25.4 mm
-place("U1A", "Connector_PinSocket_2.54mm", "PinSocket_1x15_P2.54mm_Vertical", 93, 52, value="ESP32 left")
-place("U1B", "Connector_PinSocket_2.54mm", "PinSocket_1x15_P2.54mm_Vertical", 118.4, 52, value="ESP32 right")
-place("J3", "Connector_PinHeader_2.54mm", "PinHeader_1x04_P2.54mm_Vertical", 127, 66, value="Relay module VCC/IN1/IN2/GND")
+place("U1A", "Connector_PinSocket_2.54mm", "PinSocket_1x15_P2.54mm_Vertical", 70, 6, value="ESP32 left")
+place("U1B", "Connector_PinSocket_2.54mm", "PinSocket_1x15_P2.54mm_Vertical", 95.4, 6, value="ESP32 right")
+place("J3", "Connector_PinHeader_2.54mm", "PinHeader_1x04_P2.54mm_Vertical", 102.5, 20, value="Spare relay module 5V/IN1(D18)/IN2(D19)/GND")
+# relays (rot 270: COM on top, contacts at the bottom)
+place("K1", *RELAY, 33, 56, 270, value="SRD-05VDC-SL-C ACC")
+place("K2", *RELAY, 63, 56, 270, value="SRD-05VDC-SL-C START")
+# relay drivers in the gap between the relays
+place("Q1", *TO92, 43, 56, value="BC337")
+place("Rb1", *RV, 43, 60, value="1k")
+place("Rp1", *RV, 43, 64, value="10k")
+place("D6", *D35V, 43, 68, value="1N4148")
+place("Q2", *TO92, 49.5, 56, value="BC337")
+place("Rb2", *RV, 49.5, 60, value="1k")
+place("Rp2", *RV, 49.5, 64, value="10k")
+place("D7", *D35V, 49.5, 68, value="1N4148")
 # TAHO conditioning
-place("J2", *TB3, 14, 92, value="TAHO / CONTACT / GND")
-place("R1", *R_(7.62), 24, 82, value="22k")
-place("D4", "Diode_THT", "D_DO-35_SOD27_P7.62mm_Horizontal", 34, 78, 270, value="BZX55C5V1")
-place("D5", "Diode_THT", "D_DO-35_SOD27_P7.62mm_Horizontal", 38, 78, 270, value="BZX55C5V1")
-place("C3", "Capacitor_THT", "CP_Radial_D5.0mm_P2.00mm", 31.5, 70.54, value="10u 16V NP")
-place("Rb3", *R_(7.62), 50, 70.54, 270, value="10k")
-place("Rb2", *R_(7.62), 55, 80.5, 270, value="10k")
-place("Rb1", *R_(7.62), 58, 80.5, 270, value="10k")
-place("U3", "Package_DIP", "DIP-8_W7.62mm_Socket", 60, 68, value="LM393")
-place("R4", *R_(7.62), 72, 62, 270, value="100k")
-place("R5", *R_(7.62), 76, 62, 270, value="4.7k")
-place("C5", "Capacitor_SMD", "C_0805_2012Metric", 72.5, 74.5, 90, value="100n")
-# contact input (series + filter)
-place("R6", *R_(7.62), 31, 92, value="1k")
-place("C6", "Capacitor_SMD", "C_0805_2012Metric", 44, 90, 90, value="100n")
+place("R1", *RV, 74, 70, value="22k")
+place("C3", "Capacitor_THT", "CP_Radial_D5.0mm_P2.00mm", 80, 70.5, value="10u 16V NP")
+place("D4", *D35V, 72, 75, value="BZX55C5V1")
+place("D5", *D35V, 80.5, 75, 180, value="BZX55C5V1")
+place("Rb3", *RV, 86, 66, value="10k")
+place("Rv1", *RV, 86, 70, value="10k")
+place("Rv2", *RV, 92, 70, value="10k")
+place("U3", "Package_DIP", "DIP-8_W7.62mm_Socket", 98, 62, value="LM393")
+place("R4", *RV, 92, 60, value="100k")
+place("R5", *RV, 92, 64, value="4.7k")
+place("C5", "Capacitor_SMD", "C_0805_2012Metric", 102, 74, 90, value="100n")
+place("R6", *RV, 88, 78, value="1k")
+place("C6", "Capacitor_SMD", "C_0805_2012Metric", 96, 78, 90, value="100n")
+
+# DG128-5.0 datasheet: pitch 5.0, drill 1.4 mm
+for _r in ("J1", "J4", "J5", "J2"):
+    for _p in FP[_r].Pads():
+        _p.SetDrillSize(VECTOR2I(FromMM(1.4), FromMM(1.4)))
+        _p.SetSize(VECTOR2I(FromMM(max(2.6, ToMM(_p.GetSizeX()))), FromMM(max(2.6, ToMM(_p.GetSizeY())))))
 
 # ---------------- netlist ----------------
-for ref, n in [("J1", {1: "VBATT", 2: "GND"}), ("F1", {1: "VBATT", 2: "VBF"}),
+for ref, n in [("J1", {1: "GND", 2: "VBATT"}), ("J4", {1: "VBATT", 2: "GND"}),
+               ("F1", {1: "VBATT", 2: "VBF"}),
                ("D3", {1: "VBF", 2: "GND"}),            # TVS cathode on +
                ("D1", {2: "VBF", 1: "NODE_A"}),         # anode VBF, cathode NODE_A
                ("C1", {1: "NODE_A", 2: "GND"}), ("C2", {1: "NODE_A", 2: "GND"}),
-               ("P1", {1: "NODE_A", 2: "GND"}), ("P2", {1: "VBUCK", 2: "GND"}),
+               ("RM1", {1: "NODE_A", 2: "GND", 3: "VBUCK"}),   # SIP-3 Vin GND Vout (provisional)
                ("D2", {2: "VBUCK", 1: "NODE_B"}),
                ("SC1", {1: "NODE_B", 2: "GND"}),
-               ("J3", {1: "NODE_B", 2: "ACC", 3: "START", 4: "GND"}),
+               ("J3", {1: "NODE_B", 2: "EXT1", 3: "EXT2", 4: "GND"}),
+               ("K1", {1: "VBATT", 2: "NODE_B", 3: "ACC_OUT", 5: "COIL_ACC"}),
+               ("K2", {1: "VBATT", 5: "NODE_B", 3: "START_OUT", 2: "COIL_START"}),
+               ("J5", {1: "ACC_OUT", 2: "START_OUT"}),
+               ("Q1", {1: "COIL_ACC", 2: "BASE_ACC", 3: "GND"}), ("Rb1", {1: "ACC", 2: "BASE_ACC"}), ("Rp1", {1: "BASE_ACC", 2: "GND"}),
+               ("D6", {1: "NODE_B", 2: "COIL_ACC"}),
+               ("Q2", {1: "COIL_START", 2: "BASE_START", 3: "GND"}), ("Rb2", {1: "START", 2: "BASE_START"}), ("Rp2", {1: "BASE_START", 2: "GND"}),
+               ("D7", {1: "NODE_B", 2: "COIL_START"}),
                ("J2", {1: "TAHO_IN", 2: "CONTACT", 3: "GND"}),
                ("R1", {1: "TAHO_IN", 2: "TAHO_CL"}),
                ("D4", {1: "TAHO_CL", 2: "ZMID"}), ("D5", {1: "GND", 2: "ZMID"}),
                ("C3", {1: "TAHO_CL", 2: "TAHO_AC"}),
                ("Rb3", {1: "TAHO_AC", 2: "VB"}),
-               ("Rb2", {1: "VB", 2: "GND"}), ("Rb1", {1: "VB", 2: "3V3"}),
+               ("Rv2", {1: "VB", 2: "GND"}), ("Rv1", {1: "VB", 2: "3V3"}),
                ("U3", {1: "CMP_OUT", 2: "TAHO_AC", 3: "VB", 4: "GND", 5: "UNUSED_IN", 6: "UNUSED_IN", 8: "3V3"}),
                ("R4", {1: "CMP_OUT", 2: "VB"}), ("R5", {1: "CMP_OUT", 2: "3V3"}),
                ("C5", {1: "3V3", 2: "GND"}),
                ("R6", {1: "CONTACT", 2: "D25"}), ("C6", {1: "D25", 2: "GND"}),
                ("U1A", {8: "D25", 11: "CMP_OUT", 14: "GND", 15: "NODE_B"}),
-               ("U1B", {11: "START", 12: "ACC", 14: "GND", 15: "3V3"}),
+               ("U1B", {6: "EXT2", 7: "EXT1", 11: "START", 12: "ACC", 14: "GND", 15: "3V3"}),
                ]:
     for k, v in n.items():
         assign(ref, k, v)
-# net name alias: GPIO14 net is CMP_OUT (goes to D14)
-for i in range(1, 5):
-    pass
 
 # ---------------- router ----------------
 NX, NY = int(BW / G) + 1, int(BH / G) + 1
-POWER = {"VBATT", "VBF", "NODE_A", "NODE_B", "VBUCK"}
+POWER = {"VBF", "NODE_A", "NODE_B", "VBUCK"}
 WIDTH = {n: 1.5 for n in POWER}
+
 DEFW = 0.4
 obst = {F: [], B: []}     # (xmin,ymin,xmax,ymax,netname)
 
@@ -260,10 +298,34 @@ def route_net(n, pads_list, layers_allowed):
         # refresh masks with newly added copper of other nets? (own net ignored) - other nets see via obst on next mask build
     return ok
 
-# routing order: signals tight first, power later (power is on F.Cu only)
+# ---- manual thick copper (relay power path, 10 A class) ----
+def P(ref, num):
+    q = pad(ref, num).GetPosition(); return (ToMM(q.x), ToMM(q.y))
+def poly(n, pts, w, layer=F):
+    for a, b in zip(pts, pts[1:]): add_track(n, layer, a, b, w)
+j1p, j4p = P("J1", 2), P("J4", 1)
+bar_y = 80.0
+poly("VBATT", [j1p, (j1p[0], bar_y)], 3.0)
+poly("VBATT", [j4p, (j4p[0], bar_y)], 3.0)
+poly("VBATT", [(j1p[0], bar_y), (j4p[0], bar_y)], 5.0)
+bx = (j1p[0] + j4p[0]) / 2.0
+poly("VBATT", [(bx, bar_y), (bx, 51.0)], 5.0)
+k1c, k2c = P("K1", 1), P("K2", 1)
+poly("VBATT", [(bx - 2.5, 51.0), (k2c[0], 51.0)], 5.0)
+poly("VBATT", [(k1c[0], 51.0), k1c], 3.0)
+poly("VBATT", [(k2c[0], 51.0), k2c], 3.0)
+f1 = P("F1", 1)
+poly("VBATT", [(bx, 51.0), (bx, f1[1])], 3.0)
+# relay NO -> output terminals
+k1no, k2no = P("K1", 3), P("K2", 3)
+j51, j52 = P("J5", 1), P("J5", 2)
+poly("ACC_OUT", [k1no, (k1no[0], 76.0), (j51[0], 76.0), j51], 4.0)
+poly("START_OUT", [k2no, (k2no[0], 76.0), (j52[0], 76.0), j52], 4.0)
+
+# routing order: signals first, power later
 order = [
     ("CMP_OUT", [("U3", 1), ("R4", 1), ("R5", 1), ("U1A", 11)], (F, B)),
-    ("VB", [("U3", 3), ("R4", 2), ("Rb3", 2), ("Rb2", 1), ("Rb1", 1)], (F, B)),
+    ("VB", [("U3", 3), ("R4", 2), ("Rb3", 2), ("Rv2", 1), ("Rv1", 1)], (F, B)),
     ("TAHO_AC", [("C3", 2), ("Rb3", 1), ("U3", 2)], (F, B)),
     ("TAHO_CL", [("R1", 2), ("C3", 1), ("D4", 1)], (F, B)),
     ("TAHO_IN", [("J2", 1), ("R1", 1)], (F, B)),
@@ -271,14 +333,19 @@ order = [
     ("UNUSED_IN", [("U3", 5), ("U3", 6)], (F, B)),
     ("CONTACT", [("J2", 2), ("R6", 1)], (F, B)),
     ("D25", [("R6", 2), ("C6", 1), ("U1A", 8)], (F, B)),
-    ("ACC", [("U1B", 12), ("J3", 2)], (F, B)),
-    ("START", [("U1B", 11), ("J3", 3)], (F, B)),
-    ("3V3", [("U1B", 15), ("Rb1", 2), ("R5", 2), ("U3", 8), ("C5", 1)], (F, B)),
+    ("COIL_ACC", [("K1", 5), ("Q1", 1), ("D6", 2)], (F, B)),
+    ("COIL_START", [("K2", 2), ("Q2", 1), ("D7", 2)], (F, B)),
+    ("BASE_ACC", [("Rb1", 2), ("Q1", 2), ("Rp1", 1)], (F, B)),
+    ("BASE_START", [("Rb2", 2), ("Q2", 2), ("Rp2", 1)], (F, B)),
+    ("ACC", [("U1B", 12), ("Rb1", 1)], (F, B)),
+    ("START", [("U1B", 11), ("Rb2", 1)], (F, B)),
+    ("EXT1", [("U1B", 7), ("J3", 2)], (F, B)),
+    ("EXT2", [("U1B", 6), ("J3", 3)], (F, B)),
+    ("3V3", [("U1B", 15), ("Rv1", 2), ("R5", 2), ("U3", 8), ("C5", 1)], (F, B)),
     ("VBF", [("F1", 2), ("D3", 1), ("D1", 2)], (F,)),
-    ("NODE_A", [("D1", 1), ("C2", 1), ("C1", 1), ("P1", 1)], (F,)),
-    ("VBUCK", [("P2", 1), ("D2", 2)], (F,)),
-    ("NODE_B", [("D2", 1), ("U1A", 15), ("J3", 1), ("SC1", 1)], (F, B)),
-    ("VBATT", [("J1", 1), ("F1", 1)], (F,)),
+    ("NODE_A", [("D1", 1), ("C2", 1), ("C1", 1), ("RM1", 1)], (F,)),
+    ("VBUCK", [("RM1", 3), ("D2", 2)], (F,)),
+    ("NODE_B", [("D2", 1), ("U1A", 15), ("J3", 1), ("SC1", 1), ("K1", 2), ("K2", 5), ("D6", 1), ("D7", 1)], (F, B)),
 ]
 allok = True
 for n, pl, ly in order:
@@ -299,17 +366,18 @@ zone(F); zone(B)
 pcbnew.ZONE_FILLER(board).Fill(board.Zones())
 
 # ---------------- silk labels ----------------
-def text(s, x, y, size=1.2):
+def text(s, x, y, size=1.0):
     t = pcbnew.PCB_TEXT(board); t.SetText(s); t.SetPosition(VECTOR2I(FromMM(x), FromMM(y)))
     t.SetLayer(pcbnew.F_SilkS); t.SetTextSize(VECTOR2I(FromMM(size), FromMM(size)))
     board.Add(t)
-text("BATT+", 16, 2.2); text("GND", 21.1, 2.2)
-text("TAHO", 14, 85.4); text("CONTACT", 19.1, 87.6); text("GND", 24.2, 85.4)
-text("LM2596 IN+/IN-", 76, 41.3, 0.8); text("LM2596 OUT+/OUT-", 77, 53.3, 0.8)
-text("Pramac PMD5050S autostart v1", 62, 97.5, 1.4)
-for k,(lab) in enumerate(["5V","ACC","START","GND"]): text(lab, 131.5, 66+2.54*k, 0.8)
-text("ESP32 DevKit V1 30-pin, USB down", 108, 45.5, 0.9)
-
-for r in ("J1","J2","P1","P2","R4","R5"): FP[r].Reference().SetVisible(False)
+text("BATT- BATT+", 13.5, 90.6, 0.8); text("CHG+ CHG-", 25.5, 90.6, 0.8); text("ACC  START", 37.5, 90.6, 0.8)
+text("TAHO  REMOTE1  REMOTE2", 77, 90.6, 0.8)
+text("RM20S", 54, 14, 0.8)
+text("J3 SPARE", 104.5, 29.8, 0.8); text("5V D18 D19 GND", 104.5, 31.6, 0.8)
+text("Pramac autostart v3", 26, 3.4, 1.0)
+text("K1 ACC", 33, 77.2, 0.8); text("K2 START", 63, 77.2, 0.8)
+for r in ("K1","K2","J5","Q1","Q2","Rb1","Rb2","Rp1","Rp2","D6","D7","RM1","Rv1","Rv2","F1","C1","C2","D1","D2","D3","H1","H2","H3","H4","J1","J2","J3","J4","P1","P2","SC1","R1","R4","R5","R6","Rb1","Rb2","Rb3","C3","C5","C6","D4","D5","U3"):
+    if r in FP: FP[r].Reference().SetVisible(False)
+for fp in FP.values(): fp.Value().SetVisible(False)
 pcbnew.SaveBoard(OUT, board)
 print("saved", OUT, "all routed:", allok)

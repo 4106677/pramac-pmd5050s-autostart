@@ -1,8 +1,16 @@
 ** Drc report for pramac_carrier.kicad_pcb **
-** Created on 2026-10-07T19:37:05 **
+** Created on 2026-10-12T13:47:07 **
 ** Report includes: Errors, Warnings, Exclusions **
 
-** Found 0 DRC violations **
+** Found 2 DRC violations **
+[silk_overlap]: Silkscreen clearance
+    Rule: ограничения настроек платы; warning
+    @(70.8000 mm, 74.4000 mm): Сегмент от K2 на F.Silkscreen
+    @(70.2000 mm, 75.0000 mm): Текст посад. места D4 (K)
+[silk_overlap]: Silkscreen clearance
+    Rule: ограничения настроек платы; warning
+    @(47.8100 mm, 34.0000 mm): Окружность от D3 на F.Silkscreen
+    @(45.9000 mm, 35.2000 mm): Текст посад. места D3 (K)
 
 ** Found 0 unconnected pads **
 
