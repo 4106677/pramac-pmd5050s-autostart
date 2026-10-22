@@ -4,8 +4,8 @@ Pramac autostart: parametric enclosure for Autodesk Fusion (Python script), v3.
 Run: Fusion -> UTILITIES -> ADD-INS -> Scripts and Add-Ins (Shift+S) -> "+" -> pick this file -> Run.
 It creates a new parametric design with USER PARAMETERS (Modify -> Change Parameters) and three bodies:
 Base (with PCB support posts, ledges and guide fins), Lid (with a skirt that wraps over a rebate on the base
-walls) and Cover: a screwless inlay that is glued into the lid pocket, with the Pramac logo (SVG) and two
-hazard emblems recessed by 0.05 mm so they can be painted.
+walls) and Cover: a screwless inlay glued into the lid pocket with a hazard emblem. The Pramac logo (SVG) is on the
+lid above the cover. Logo and emblem are recessed by 0.05 mm so they can be painted.
 Sketches are dimensioned with the parameters, so editing a parameter rebuilds the model through the timeline.
 
 Frame: origin = outer bottom-left corner of the base, x to the right, y up (plan view), z from the wall
@@ -54,8 +54,7 @@ PARAMS = [
     ('cover_gap', '0.25', 'cover pocket clearance (room for glue)'),
     ('cover_chamfer', '0.4', 'cover top edge chamfer'),
     ('inlay', '0.05', 'recess depth of logo and emblems'),
-    ('logo_h', '28', 'logo height'),
-    ('emblem_dx', '35', 'emblem distance from the cover centre'),
+    ('logo_h', '40', 'logo height (on the lid)'),
     ('support_d', '5', 'plain PCB support post diameter'),
     ('ledge_len', '10', 'PCB edge ledge length'),
     ('ledge_under', '1.5', 'how far a ledge reaches under the PCB edge'),
@@ -425,6 +424,37 @@ def run(context):
         extrude(root, profiles(sk), CUT, 'pocket_d', 'Cover pocket', lid, negative=True)
         pl_pocket = offset_plane(root, 'base_h + lid_t - pocket_d')
 
+        def logo():
+            """Imports the SVG, scales it to logo_h, centres it in the free area of the lid above the cover and recesses it by `inlay`."""
+            import os
+            svg = os.path.join(os.path.dirname(os.path.abspath(__file__)), LOGO_SVG)
+            s2 = root.sketches.add(pl_lid_top); s2.name = 'Logo'
+            s2.importSVG(svg, 0, 0, 1.0)
+            ents = adsk.core.ObjectCollection.create()
+            for c in s2.sketchCurves:
+                ents.add(c)
+            bb = s2.boundingBox
+            k = V['logo_h'] * CM / (bb.maxPoint.y - bb.minPoint.y)
+            s2.scale(ents, s2.originPoint, k)
+            bb = s2.boundingBox
+            mv = adsk.core.Matrix3D.create()
+            mv.translation = adsk.core.Vector3D.create((V['outer_w'] / 2) * CM - (bb.minPoint.x + bb.maxPoint.x) / 2,
+                                                       ((V['cover_y1'] + V['outer_h']) / 2) * CM - (bb.minPoint.y + bb.maxPoint.y) / 2, 0)
+            s2.move(ents, mv)
+            profs = [s2.profiles.item(i) for i in range(s2.profiles.count)]
+            holes_of = [p for p in profs if p.profileLoops.count >= 2]   # letters with counters (P, R, A)
+            col = adsk.core.ObjectCollection.create()
+            for p in profs:
+                pb = p.boundingBox
+                inside = p.profileLoops.count == 1 and any(
+                    h.boundingBox.minPoint.x < pb.minPoint.x and h.boundingBox.minPoint.y < pb.minPoint.y and
+                    h.boundingBox.maxPoint.x > pb.maxPoint.x and h.boundingBox.maxPoint.y > pb.maxPoint.y
+                    for h in holes_of)
+                if not inside:                           # skip the counters, they are not part of the logo
+                    col.add(p)
+            extrude(root, col, CUT, 'inlay', 'Logo recess', lid, negative=True)
+        optional('logo (SVG import)', logo)
+
         optional('lid top chamfer', lambda: chamfer_edges(
             root, face_edges_at_z(lid, V['base_h'] + V['lid_t'], +1), 'chamfer_d', 'Lid top chamfer'))
 
@@ -441,10 +471,10 @@ def run(context):
         cxm = V['cover_x0'] + V['cover_w'] / 2
         cym = V['cover_y0'] + (V['cover_y1'] - V['cover_y0']) / 2
 
-        def emblem(sign):
+        def emblem():
             """Hazard triangle with a lightning bolt, recessed by `inlay` into the cover top."""
-            cx = cxm + sign * V['emblem_dx']
-            s2 = root.sketches.add(pl_cov_top); s2.name = 'Emblem %s' % ('L' if sign < 0 else 'R')
+            cx = cxm
+            s2 = root.sketches.add(pl_cov_top); s2.name = 'Emblem'
             R = 12.0
             outer = [(0, R), (-R * 0.866, -R * 0.5), (R * 0.866, -R * 0.5)]
             k = 0.62
@@ -466,39 +496,8 @@ def run(context):
                 if (pr.profileLoops.count == 2 and ar > 0.6) or (pr.profileLoops.count == 1 and ar < 0.4):
                     col.add(pr)                          # triangle ring and the bolt
             extrude(root, col, CUT, 'inlay', 'Emblem recess', cover, negative=True)
-        optional('left emblem', lambda: emblem(-1))
-        optional('right emblem', lambda: emblem(1))
+        optional('emblem', emblem)
 
-        def logo():
-            """Imports the SVG, scales it to logo_h, centres it on the cover and recesses it by `inlay`."""
-            import os
-            svg = os.path.join(os.path.dirname(os.path.abspath(__file__)), LOGO_SVG)
-            s2 = root.sketches.add(pl_cov_top); s2.name = 'Logo'
-            s2.importSVG(svg, 0, 0, 1.0)
-            ents = adsk.core.ObjectCollection.create()
-            for c in s2.sketchCurves:
-                ents.add(c)
-            bb = s2.boundingBox
-            k = V['logo_h'] * CM / (bb.maxPoint.y - bb.minPoint.y)
-            s2.scale(ents, s2.originPoint, k)
-            bb = s2.boundingBox
-            mv = adsk.core.Matrix3D.create()
-            mv.translation = adsk.core.Vector3D.create(cxm * CM - (bb.minPoint.x + bb.maxPoint.x) / 2,
-                                                       cym * CM - (bb.minPoint.y + bb.maxPoint.y) / 2, 0)
-            s2.move(ents, mv)
-            profs = [s2.profiles.item(i) for i in range(s2.profiles.count)]
-            holes_of = [p for p in profs if p.profileLoops.count >= 2]   # letters with counters (P, R, A)
-            col = adsk.core.ObjectCollection.create()
-            for p in profs:
-                pb = p.boundingBox
-                inside = p.profileLoops.count == 1 and any(
-                    h.boundingBox.minPoint.x < pb.minPoint.x and h.boundingBox.minPoint.y < pb.minPoint.y and
-                    h.boundingBox.maxPoint.x > pb.maxPoint.x and h.boundingBox.maxPoint.y > pb.maxPoint.y
-                    for h in holes_of)
-                if not inside:                           # skip the counters, they are not part of the logo
-                    col.add(p)
-            extrude(root, col, CUT, 'inlay', 'Logo recess', cover, negative=True)
-        optional('logo (SVG import)', logo)
 
         msg = 'Done: bodies Base, Lid, Cover. Change Parameters (Modify) to resize.'
         if SKIPPED:

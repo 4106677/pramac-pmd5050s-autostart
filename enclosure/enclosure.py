@@ -29,8 +29,8 @@ P = dict(
     slots=[(3.6, 13.0), (16.2, 25.6), (28.2, 37.5), (57.8, 67.2), (77.3, 91.7)], slot_z0=4.0, slot_h=22.0,
     cover_w=100.0, cover_top_y=60.0, cover_bottom=12.0,       # cover inlay: width, top edge (PCB y), bottom edge above the lid edge
     cover_r=4.0, cover_gap=0.25, cover_chamfer=0.4,           # glued in, no screws: cover thickness = pocket depth (flush)
-    inlay=0.05, logo_h=28.0, logo_svg='pramac-logo-vector.svg',   # recess depth of logo/emblems (paint them), logo height
-    emblem_s=15.0, emblem_dx=35.0,                             # hazard emblem size and its distance from the cover centre
+    inlay=0.05, logo_h=40.0, logo_svg='pramac-logo-vector.svg',   # recess depth of logo/emblems (paint them), logo height
+    emblem_s=19.0,                                            # hazard emblem size (one, centred on the cover); the logo goes on the lid
     # extra PCB supports (the board is held by 3 screws): plain posts at free spots (PCB coords), edge ledges with guide fins
     support_d=5.0, supports=[(28.0, 20.5), (83.0, 26.0), (28.5, 64.5), (72.5, 67.5), (14.0, 41.0), (48.0, 37.0)],
     ledge_len=10.0, ledge_under=1.5, fin_t=1.5, fin_gap=0.4, fin_above=2.0,
@@ -196,6 +196,10 @@ def make_lid():
     for (cx, cy) in corner_posts():
         m = m - cyl(cx, cy, -1, t + 2, P['screw_clear_d'], 32)
         m = m - cone(cx, cy, t - P['csk_h'], P['csk_h'] + 0.01, P['screw_clear_d'], P['csk_d'], 32)
+    # logo recessed into the lid top, centred in the free area above the cover
+    cx0, cy0, cw, ch = cover_geom()
+    ly = (cy0 + ch + (H - 0)) / 2
+    m = m - prism(logo_section(), 0, P['inlay'] + 1).translate([W / 2, ly, t - P['inlay']])
     # shallow pocket for the glued-in cover (no opening: the terminals are reached by taking the lid off)
     x0, y0, w, h = cover_geom()
     g = P['cover_gap']
@@ -223,16 +227,12 @@ def emblem_section():
 
 
 def make_cover():
-    """Flush inlay: as thick as the lid pocket is deep. Logo and emblems are recessed by `inlay` mm for painting."""
+    """Flush inlay: as thick as the lid pocket is deep. The emblem is recessed by `inlay` mm for painting."""
     x0, y0, w, h = cover_geom()
     ct = P['pocket_d']
     m = chamfered_slab(x0, y0, w, h, P['cover_r'], 0, ct, P['cover_chamfer'], bottom=False, top=True)
-    cx, cy = x0 + w / 2, y0 + h / 2
     d = P['inlay']
-    cut = prism(logo_section(), 0, d + 1).translate([cx, cy, ct - d])
-    for sx in (-1, 1):
-        cut = cut + prism(emblem_section(), 0, d + 1).translate([cx + sx * P['emblem_dx'], cy, ct - d])
-    return m - cut
+    return m - prism(emblem_section(), 0, d + 1).translate([x0 + w / 2, y0 + h / 2, ct - d])
 
 
 def to_trimesh(m):
