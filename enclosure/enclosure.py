@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pramac autostart enclosure v2 (base + lid with skirt + cable cover) -> STL. Units: mm.
+"""Pramac autostart enclosure v3 (base + lid with skirt + glued-in cover with logo) -> STL. Units: mm.
 
 Frame: origin at the outer bottom-left corner of the base, x to the right, y up (plan view),
 z from the wall side (floor, z=0) towards the lid. The PCB top edge is at the top (high y).
@@ -11,7 +11,9 @@ Needs: numpy trimesh manifold3d (pip install numpy trimesh manifold3d).
 import sys
 import numpy as np
 import trimesh
-from manifold3d import Manifold, CrossSection, JoinType
+import os
+from manifold3d import Manifold, CrossSection, JoinType, FillRule
+from svgpath import svg_polygons
 
 # ------------------------------------------------------------------ parameters
 P = dict(
@@ -25,9 +27,14 @@ P = dict(
     pcb_holes=[(4.0, 37.0), (47.5, 76.5), (72.5, 75.0)],   # PCB mounting holes (x from left, y from top)
     # wire slots in the bottom wall, one per terminal block (J1, J4, J5, J6 contactor, J2), PCB x ranges
     slots=[(3.6, 13.0), (16.2, 25.6), (28.2, 37.5), (57.8, 67.2), (77.3, 91.7)], slot_z0=4.0, slot_h=22.0,
-    term_y=72.0, opening_x=(2.5, 93.0), opening_h=15.0,      # lid opening above the terminal screws (PCB coords)
-    cover_w=100.0, cover_top_y=60.0, cover_bottom=12.0,       # cover: width, top edge (PCB y), bottom edge above the lid edge
-    cover_t=2.4, cover_r=4.0, cover_gap=0.25, cover_boss_d=6.5, cover_boss_h=6.0, peg_d=3.0, peg_l=1.6,
+    cover_w=100.0, cover_top_y=60.0, cover_bottom=12.0,       # cover inlay: width, top edge (PCB y), bottom edge above the lid edge
+    cover_r=4.0, cover_gap=0.25, cover_chamfer=0.4,           # glued in, no screws: cover thickness = pocket depth (flush)
+    inlay=0.05, logo_h=28.0, logo_svg='pramac-logo-vector.svg',   # recess depth of logo/emblems (paint them), logo height
+    emblem_s=15.0, emblem_dx=35.0,                             # hazard emblem size and its distance from the cover centre
+    # extra PCB supports (the board is held by 3 screws): plain posts at free spots (PCB coords), edge ledges with guide fins
+    support_d=5.0, supports=[(28.0, 20.5), (83.0, 26.0), (28.5, 64.5), (72.5, 67.5), (14.0, 41.0), (48.0, 37.0)],
+    ledge_len=10.0, ledge_under=1.5, fin_t=1.5, fin_gap=0.4, fin_above=2.0,
+    ledges_left=[12.0, 62.0], ledges_right=[20.0, 50.0], ledges_top=[15.0, 80.0],   # ledge centres along each PCB edge
     vent_n=6, vent_w=2.0, vent_l=24.0, vent_pitch=10.0, vent_z=30.0,
     ear_w=14.0, ear_l=16.0, ear_t=3.2, ear_hole=5.2,
 )
@@ -108,14 +115,32 @@ def cover_geom():
     return (D['outer_w'] / 2 - P['cover_w'] / 2, y0, P['cover_w'], y_top - y0)
 
 
-def cover_boss_xy():
-    x0, y0, w, h = cover_geom()
-    return [(x0 + 14.0, y0 + 5.0), (x0 + w - 14.0, y0 + 5.0)]      # clear of the lid corner posts
-
-
-def cover_pegs_xy():
-    x0, y0, w, h = cover_geom()
-    return [(x0 + w * 0.25, y0 + h - 4.0), (x0 + w * 0.75, y0 + h - 4.0)]
+# ------------------------------------------------------------------ PCB supports
+def supports():
+    f, sd = P['floor'], P['standoff']
+    z_top = f + sd                                           # underside of the PCB
+    parts = []
+    for (px, py) in P['supports']:                           # plain posts with a wider foot
+        x, y = pcb_xy(px, py)
+        parts.append(cyl(x, y, f - 0.01, sd + 0.01, P['support_d']))
+        parts.append(cone(x, y, f - 0.01, 2.0, P['support_d'] + 4.0, P['support_d']))
+    x0, x1 = D['pcb_x0'], D['pcb_x0'] + P['pcb_w']
+    y1, y0 = D['pcb_ytop'], D['pcb_ytop'] - P['pcb_h']
+    w, L, u, ft, fg = P['wall'], P['ledge_len'], P['ledge_under'], P['fin_t'], P['fin_gap']
+    zf = z_top + P['pcb_t'] + P['fin_above']
+    for py in P['ledges_left']:                              # ledge under the PCB edge + guide fin just outside it
+        y = pcb_xy(0, py)[1]
+        parts.append(box(w - 0.01, y - L / 2, f - 0.01, x0 + u, y + L / 2, z_top))
+        parts.append(box(x0 - fg - ft, y - L / 2, f - 0.01, x0 - fg, y + L / 2, zf))
+    for py in P['ledges_right']:
+        y = pcb_xy(0, py)[1]
+        parts.append(box(x1 - u, y - L / 2, f - 0.01, D['outer_w'] - w + 0.01, y + L / 2, z_top))
+        parts.append(box(x1 + fg, y - L / 2, f - 0.01, x1 + fg + ft, y + L / 2, zf))
+    for px in P['ledges_top']:
+        x = pcb_xy(px, 0)[0]
+        parts.append(box(x - L / 2, y1 - u, f - 0.01, x + L / 2, D['outer_h'] - w + 0.01, z_top))
+        parts.append(box(x - L / 2, y1 + fg, f - 0.01, x + L / 2, y1 + fg + ft, zf))
+    return Manifold.compose(parts)
 
 
 # ------------------------------------------------------------------ base
@@ -131,6 +156,7 @@ def make_base():
     for (px, py) in P['pcb_holes']:                                                       # PCB posts
         x, y = pcb_xy(px, py)
         m = m + cyl(x, y, f - 0.01, P['standoff'] + 0.01, P['boss_d'])
+    m = m + supports()
     for (cx, cy) in corner_posts():
         m = m - cyl(cx, cy, top - P['insert_depth'], P['insert_depth'] + 1, P['insert_d'], 32)
     for (px, py) in P['pcb_holes']:
@@ -170,43 +196,43 @@ def make_lid():
     for (cx, cy) in corner_posts():
         m = m - cyl(cx, cy, -1, t + 2, P['screw_clear_d'], 32)
         m = m - cone(cx, cy, t - P['csk_h'], P['csk_h'] + 0.01, P['screw_clear_d'], P['csk_d'], 32)
-    # cover pocket + opening above the terminal screws
+    # shallow pocket for the glued-in cover (no opening: the terminals are reached by taking the lid off)
     x0, y0, w, h = cover_geom()
     g = P['cover_gap']
     m = m - rprism(x0 - g, y0 - g, w + 2 * g, h + 2 * g, P['cover_r'] + g, t - P['pocket_d'], t + 1)
-    (a, b), oh, ty = P['opening_x'], P['opening_h'], P['term_y']
-    ox0, oy0 = pcb_xy(a, ty + oh / 2)
-    ox1, oy1 = pcb_xy(b, ty - oh / 2)
-    m = m - rprism(ox0, oy0, ox1 - ox0, oy1 - oy0, 2.0, -1, t + 1)
-    # bosses under the lid for the cover screws, peg holes at the top edge of the pocket
-    for (cx, cy) in cover_boss_xy():
-        m = m + cyl(cx, cy, -P['cover_boss_h'], P['cover_boss_h'] + 0.01, P['cover_boss_d'])
-        m = m - cyl(cx, cy, -P['cover_boss_h'] - 1, P['cover_boss_h'] + 1, P['insert_d'], 32)
-        m = m - cyl(cx, cy, -0.5, t + 1, P['screw_clear_d'], 32)
-    for (cx, cy) in cover_pegs_xy():
-        m = m - cyl(cx, cy, t - P['pocket_d'] - 0.01, P['peg_l'] + 0.4, P['peg_d'] + 0.4, 24)
     return m
 
 
 # ------------------------------------------------------------------ cover with hazard emblem
-def make_cover():
-    x0, y0, w, h = cover_geom()
-    ct, c = P['cover_t'], 0.6
-    m = chamfered_slab(x0, y0, w, h, P['cover_r'], 0, ct, c, bottom=False, top=True)
-    for (cx, cy) in cover_boss_xy():
-        m = m - cyl(cx, cy, -1, ct + 2, P['screw_clear_d'], 32)
-        m = m - cone(cx, cy, ct - 1.3, 1.31, P['screw_clear_d'], P['csk_d'] - 0.6, 32)
-    for (cx, cy) in cover_pegs_xy():                      # pegs on the underside
-        m = m + cyl(cx, cy, -P['peg_l'], P['peg_l'] + 0.01, P['peg_d'], 24)
-    # hazard emblem (raised 0.6 mm): rounded triangle ring + lightning bolt
-    s = 19.0
+def logo_section():
+    """Pramac logo (SVG), scaled to logo_h, centred on the origin."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), P['logo_svg'])
+    cs = CrossSection(svg_polygons(path), FillRule.EvenOdd)
+    bx0, by0, bx1, by1 = cs.bounds()
+    k = P['logo_h'] / (by1 - by0)
+    return cs.translate([-(bx0 + bx1) / 2, -(by0 + by1) / 2]).scale([k, k])
+
+
+def emblem_section():
+    """High-voltage hazard sign: rounded triangle ring + lightning bolt, centred on the origin."""
+    s = P['emblem_s']
     tri = np.array([[0, s * 0.62], [-s * 0.62 * 0.866 * 1.15, -s * 0.31], [s * 0.62 * 0.866 * 1.15, -s * 0.31]])
-    ring = CrossSection([tri]).offset(1.4, JoinType.Round, 2.0, 32) - CrossSection([tri]).offset(-1.4, JoinType.Round, 2.0, 32)
-    bolt = np.array([[1.2, 5.2], [-3.2, -0.4], [-0.4, -0.4], [-1.6, -5.4], [3.4, 0.9], [0.5, 0.9]]) * 1.2
-    cx, cy = x0 + w / 2, y0 + h * 0.52
-    emb = prism(ring, 0, 0.6) + prism(CrossSection([bolt]), 0, 0.6)
-    m = m + emb.translate([cx, cy, ct - 0.01])
-    return m
+    ring = CrossSection([tri]).offset(s * 0.07, JoinType.Round, 2.0, 32) - CrossSection([tri]).offset(-s * 0.07, JoinType.Round, 2.0, 32)
+    bolt = np.array([[1.2, 5.2], [-3.2, -0.4], [-0.4, -0.4], [-1.6, -5.4], [3.4, 0.9], [0.5, 0.9]]) * 1.2 * s / 19.0
+    return ring + CrossSection([bolt])
+
+
+def make_cover():
+    """Flush inlay: as thick as the lid pocket is deep. Logo and emblems are recessed by `inlay` mm for painting."""
+    x0, y0, w, h = cover_geom()
+    ct = P['pocket_d']
+    m = chamfered_slab(x0, y0, w, h, P['cover_r'], 0, ct, P['cover_chamfer'], bottom=False, top=True)
+    cx, cy = x0 + w / 2, y0 + h / 2
+    d = P['inlay']
+    cut = prism(logo_section(), 0, d + 1).translate([cx, cy, ct - d])
+    for sx in (-1, 1):
+        cut = cut + prism(emblem_section(), 0, d + 1).translate([cx + sx * P['emblem_dx'], cy, ct - d])
+    return m - cut
 
 
 def to_trimesh(m):

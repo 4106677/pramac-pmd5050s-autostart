@@ -1,15 +1,17 @@
 """
-Pramac autostart: parametric enclosure for Autodesk Fusion (Python script), v2.
+Pramac autostart: parametric enclosure for Autodesk Fusion (Python script), v3.
 
 Run: Fusion -> UTILITIES -> ADD-INS -> Scripts and Add-Ins (Shift+S) -> "+" -> pick this file -> Run.
 It creates a new parametric design with USER PARAMETERS (Modify -> Change Parameters) and three bodies:
-Base, Lid (with a skirt that wraps over a rebate on the base walls) and Cover (with a hazard emblem).
+Base (with PCB support posts, ledges and guide fins), Lid (with a skirt that wraps over a rebate on the base
+walls) and Cover: a screwless inlay that is glued into the lid pocket, with the Pramac logo (SVG) and two
+hazard emblems recessed by 0.05 mm so they can be painted.
 Sketches are dimensioned with the parameters, so editing a parameter rebuilds the model through the timeline.
 
 Frame: origin = outer bottom-left corner of the base, x to the right, y up (plan view), z from the wall
 side (floor) towards the lid. The PCB top edge is at the high-y side; the cable gutter is at the low-y side.
 
-The core geometry is created first. Cosmetic steps (rounded corners, chamfers, emblem, pegs) are "optional":
+The core geometry is created first. Cosmetic steps (rounded corners, chamfers, emblems, logo) are "optional":
 if one fails the script carries on and lists what was skipped at the end.
 
 NOTE: written against the Fusion API without being run inside Fusion (no Fusion on the machine it was written
@@ -45,20 +47,21 @@ PARAMS = [
     ('csk_h', '1.7', 'screw head recess depth'),
     ('slot_z0', '4', 'wire slot: height above the floor'),
     ('slot_h', '22', 'wire slot height'),
-    ('term_y', '72', 'terminal row y on the PCB (from the top edge)'),
-    ('open_x0', '2.5', 'lid opening left edge on the PCB (x)'),
-    ('open_x1', '93', 'lid opening right edge on the PCB (x)'),
-    ('open_h', '15', 'lid opening height'),
-    ('cover_w', '100', 'cover plate width'),
+    ('cover_w', '100', 'cover inlay width'),
     ('cover_top_y', '60', 'cover top edge on the PCB (y from the PCB top)'),
     ('cover_bottom', '12', 'cover bottom edge above the lid edge'),
-    ('cover_t', '2.4', 'cover plate thickness'),
     ('cover_r', '4', 'cover corner radius'),
-    ('cover_gap', '0.25', 'cover pocket clearance'),
-    ('cover_boss_d', '6.5', 'cover screw boss diameter'),
-    ('cover_boss_h', '6', 'cover screw boss height (below the lid)'),
-    ('peg_d', '3', 'cover peg diameter'),
-    ('peg_l', '1.6', 'cover peg length'),
+    ('cover_gap', '0.25', 'cover pocket clearance (room for glue)'),
+    ('cover_chamfer', '0.4', 'cover top edge chamfer'),
+    ('inlay', '0.05', 'recess depth of logo and emblems'),
+    ('logo_h', '28', 'logo height'),
+    ('emblem_dx', '35', 'emblem distance from the cover centre'),
+    ('support_d', '5', 'plain PCB support post diameter'),
+    ('ledge_len', '10', 'PCB edge ledge length'),
+    ('ledge_under', '1.5', 'how far a ledge reaches under the PCB edge'),
+    ('fin_t', '1.5', 'guide fin thickness'),
+    ('fin_gap', '0.4', 'clearance between PCB edge and guide fin'),
+    ('fin_above', '2', 'guide fin height above the PCB top'),
     ('vent_w', '2', 'vent slot width'),
     ('vent_l', '24', 'vent slot length'),
     ('vent_pitch', '10', 'vent slot pitch'),
@@ -80,11 +83,15 @@ PARAMS = [
     ('cover_y0', 'cover_bottom', 'derived'),
     ('cover_y1', 'pcb_ytop - cover_top_y', 'derived'),
     ('cover_x0', 'outer_w / 2 - cover_w / 2', 'derived'),
+    ('cover_t', 'pocket_d', 'derived: the cover is flush with the lid'),
 ]
 
 PCB_HOLES = [(4.0, 37.0), (47.5, 76.5), (72.5, 75.0)]               # PCB mounting holes (x from left, y from top)
 SLOTS = [(3.6, 13.0), (16.2, 25.6), (28.2, 37.5), (57.8, 67.2), (77.3, 91.7)]   # wire slots, PCB x ranges
+SUPPORTS = [(28.0, 20.5), (83.0, 26.0), (28.5, 64.5), (72.5, 67.5), (14.0, 41.0), (48.0, 37.0)]   # plain posts (PCB x, y)
+LEDGES_LEFT, LEDGES_RIGHT, LEDGES_TOP = [12.0, 62.0], [20.0, 50.0], [15.0, 80.0]   # ledge centres along each PCB edge
 VENT_N = 6
+LOGO_SVG = 'pramac-logo-vector.svg'   # next to this script
 
 CM = 0.1  # API length unit is cm; parameters are in mm
 app = adsk.core.Application.get()
@@ -310,6 +317,37 @@ def run(context):
             circle(sk, 'pcb_x0 + %s' % px, 'pcb_ytop - %s' % py, 'boss_d')
         extrude(root, profiles(sk), JOIN, 'standoff', 'PCB posts', base)
 
+        step = 'base: pcb supports'
+        sk = root.sketches.add(pl_floor); sk.name = 'Support posts'
+        for px, py in SUPPORTS:
+            circle(sk, 'pcb_x0 + %s' % px, 'pcb_ytop - %s' % py, 'support_d')
+        extrude(root, profiles(sk), JOIN, 'standoff', 'Support posts', base)
+        sk = root.sketches.add(pl_floor); sk.name = 'PCB ledges'
+        for py in LEDGES_LEFT:
+            yc = 'pcb_ytop - %s' % py
+            rect(sk, 'wall', '%s - ledge_len / 2' % yc, 'pcb_x0 + ledge_under', '%s + ledge_len / 2' % yc)
+        for py in LEDGES_RIGHT:
+            yc = 'pcb_ytop - %s' % py
+            rect(sk, 'pcb_x0 + pcb_w - ledge_under', '%s - ledge_len / 2' % yc, 'outer_w - wall', '%s + ledge_len / 2' % yc)
+        for px in LEDGES_TOP:
+            xc = 'pcb_x0 + %s' % px
+            rect(sk, '%s - ledge_len / 2' % xc, 'pcb_ytop - ledge_under', '%s + ledge_len / 2' % xc, 'outer_h - wall')
+        extrude(root, profiles(sk), JOIN, 'standoff', 'PCB ledges', base)
+
+        def guide_fins():
+            s2 = root.sketches.add(pl_floor); s2.name = 'Guide fins'
+            for py in LEDGES_LEFT:
+                yc = 'pcb_ytop - %s' % py
+                rect(s2, 'pcb_x0 - fin_gap - fin_t', '%s - ledge_len / 2' % yc, 'pcb_x0 - fin_gap', '%s + ledge_len / 2' % yc)
+            for py in LEDGES_RIGHT:
+                yc = 'pcb_ytop - %s' % py
+                rect(s2, 'pcb_x0 + pcb_w + fin_gap', '%s - ledge_len / 2' % yc, 'pcb_x0 + pcb_w + fin_gap + fin_t', '%s + ledge_len / 2' % yc)
+            for px in LEDGES_TOP:
+                xc = 'pcb_x0 + %s' % px
+                rect(s2, '%s - ledge_len / 2' % xc, 'pcb_ytop + fin_gap', '%s + ledge_len / 2' % xc, 'pcb_ytop + fin_gap + fin_t')
+            extrude(root, profiles(s2), JOIN, 'standoff + pcb_t + fin_above', 'Guide fins', base)
+        optional('guide fins', guide_fins)
+
         step = 'base: insert holes'
         pl_top = offset_plane(root, 'base_h')
         sk = root.sketches.add(pl_top); sk.name = 'Lid insert holes'
@@ -380,40 +418,12 @@ def run(context):
             circle(sk, cx, cy, 'csk_d')
         extrude(root, profiles(sk), CUT, 'csk_h', 'Lid screw head recess', lid, negative=True)
 
-        step = 'lid: cover pocket and opening'
+        step = 'lid: cover pocket'
         sk = root.sketches.add(pl_lid_top); sk.name = 'Cover pocket'
         rect(sk, 'cover_x0 - cover_gap', 'cover_y0 - cover_gap',
              'cover_x0 + cover_w + cover_gap', 'cover_y1 + cover_gap')
         extrude(root, profiles(sk), CUT, 'pocket_d', 'Cover pocket', lid, negative=True)
         pl_pocket = offset_plane(root, 'base_h + lid_t - pocket_d')
-        sk = root.sketches.add(pl_pocket); sk.name = 'Lid opening'
-        rect(sk, 'pcb_x0 + open_x0', 'pcb_ytop - term_y - open_h / 2', 'pcb_x0 + open_x1', 'pcb_ytop - term_y + open_h / 2')
-        extrude(root, profiles(sk), CUT, 'lid_t - pocket_d', 'Lid opening', lid, negative=True)
-
-        step = 'lid: cover bosses'
-        cb = [('cover_x0 + 14', 'cover_y0 + 5'), ('cover_x0 + cover_w - 14', 'cover_y0 + 5')]
-        sk = root.sketches.add(pl_top); sk.name = 'Cover bosses'
-        for cx, cy in cb:
-            circle(sk, cx, cy, 'cover_boss_d')
-        extrude(root, profiles(sk), JOIN, 'cover_boss_h', 'Cover bosses', lid, negative=True)
-        pl_boss = offset_plane(root, 'base_h - cover_boss_h')
-        sk = root.sketches.add(pl_boss); sk.name = 'Cover insert holes'
-        for cx, cy in cb:
-            circle(sk, cx, cy, 'insert_d')
-        extrude(root, profiles(sk), CUT, 'cover_boss_h', 'Cover insert holes', lid)
-        sk = root.sketches.add(pl_pocket); sk.name = 'Cover screw holes (lid)'
-        for cx, cy in cb:
-            circle(sk, cx, cy, 'screw_clear_d')
-        extrude(root, profiles(sk), CUT, 'lid_t - pocket_d', 'Cover screw holes (lid)', lid, negative=True)
-
-        pegs = [('cover_x0 + cover_w * 0.25', 'cover_y1 - 4'), ('cover_x0 + cover_w * 0.75', 'cover_y1 - 4')]
-
-        def peg_holes():
-            s2 = root.sketches.add(pl_pocket); s2.name = 'Peg holes'
-            for cx, cy in pegs:
-                circle(s2, cx, cy, 'peg_d + 0.4')
-            extrude(root, profiles(s2), CUT, 'peg_l + 0.4', 'Peg holes', lid, negative=True)
-        optional('peg holes', peg_holes)
 
         optional('lid top chamfer', lambda: chamfer_edges(
             root, face_edges_at_z(lid, V['base_h'] + V['lid_t'], +1), 'chamfer_d', 'Lid top chamfer'))
@@ -428,23 +438,13 @@ def run(context):
         optional('cover corner fillets', lambda: fillet_edges(
             root, vertical_edges(cover, V['cover_t']), 'cover_r', 'Cover corners'))
         pl_cov_top = offset_plane(root, 'base_h + lid_t - pocket_d + cover_t')
-        sk = root.sketches.add(pl_cov_top); sk.name = 'Cover screw holes'
-        for cx, cy in cb:
-            circle(sk, cx, cy, 'screw_clear_d')
-        extrude(root, profiles(sk), CUT, 'cover_t', 'Cover screw holes', cover, negative=True)
+        cxm = V['cover_x0'] + V['cover_w'] / 2
+        cym = V['cover_y0'] + (V['cover_y1'] - V['cover_y0']) / 2
 
-        def cover_pegs():
-            s2 = root.sketches.add(pl_cov); s2.name = 'Cover pegs'
-            for cx, cy in pegs:
-                circle(s2, cx, cy, 'peg_d')
-            extrude(root, profiles(s2), JOIN, 'peg_l', 'Cover pegs', cover, negative=True)
-        optional('cover pegs', cover_pegs)
-
-        def emblem():
-            """Hazard triangle (raised 0.6 mm) with a lightning bolt, centred on the cover."""
-            cxm = V['cover_x0'] + V['cover_w'] / 2
-            cym = V['cover_y0'] + (V['cover_y1'] - V['cover_y0']) * 0.52
-            s2 = root.sketches.add(pl_cov_top); s2.name = 'Emblem'
+        def emblem(sign):
+            """Hazard triangle with a lightning bolt, recessed by `inlay` into the cover top."""
+            cx = cxm + sign * V['emblem_dx']
+            s2 = root.sketches.add(pl_cov_top); s2.name = 'Emblem %s' % ('L' if sign < 0 else 'R')
             R = 12.0
             outer = [(0, R), (-R * 0.866, -R * 0.5), (R * 0.866, -R * 0.5)]
             k = 0.62
@@ -452,21 +452,53 @@ def run(context):
             for tri in (outer, inner):
                 for i in range(3):
                     a, b = tri[i], tri[(i + 1) % 3]
-                    s2.sketchCurves.sketchLines.addByTwoPoints(P3(cxm + a[0], cym + a[1]), P3(cxm + b[0], cym + b[1]))
+                    s2.sketchCurves.sketchLines.addByTwoPoints(P3(cx + a[0], cym + a[1]), P3(cx + b[0], cym + b[1]))
             bolt = [(1.2, 5.0), (-3.0, -0.4), (-0.4, -0.4), (-1.6, -5.2), (3.2, 0.9), (0.5, 0.9)]
             sc = 1.05
             for i in range(len(bolt)):
                 a, b = bolt[i], bolt[(i + 1) % len(bolt)]
-                s2.sketchCurves.sketchLines.addByTwoPoints(P3(cxm + a[0] * sc, cym + a[1] * sc - 1.5),
-                                                          P3(cxm + b[0] * sc, cym + b[1] * sc - 1.5))
+                s2.sketchCurves.sketchLines.addByTwoPoints(P3(cx + a[0] * sc, cym + a[1] * sc - 1.5),
+                                                          P3(cx + b[0] * sc, cym + b[1] * sc - 1.5))
             col = adsk.core.ObjectCollection.create()
             for i in range(s2.profiles.count):
                 pr = s2.profiles.item(i)
                 ar = pr.areaProperties().area            # cm2
                 if (pr.profileLoops.count == 2 and ar > 0.6) or (pr.profileLoops.count == 1 and ar < 0.4):
                     col.add(pr)                          # triangle ring and the bolt
-            extrude(root, col, JOIN, '0.6', 'Emblem', cover)
-        optional('emblem', emblem)
+            extrude(root, col, CUT, 'inlay', 'Emblem recess', cover, negative=True)
+        optional('left emblem', lambda: emblem(-1))
+        optional('right emblem', lambda: emblem(1))
+
+        def logo():
+            """Imports the SVG, scales it to logo_h, centres it on the cover and recesses it by `inlay`."""
+            import os
+            svg = os.path.join(os.path.dirname(os.path.abspath(__file__)), LOGO_SVG)
+            s2 = root.sketches.add(pl_cov_top); s2.name = 'Logo'
+            s2.importSVG(svg, 0, 0, 1.0)
+            ents = adsk.core.ObjectCollection.create()
+            for c in s2.sketchCurves:
+                ents.add(c)
+            bb = s2.boundingBox
+            k = V['logo_h'] * CM / (bb.maxPoint.y - bb.minPoint.y)
+            s2.scale(ents, s2.originPoint, k)
+            bb = s2.boundingBox
+            mv = adsk.core.Matrix3D.create()
+            mv.translation = adsk.core.Vector3D.create(cxm * CM - (bb.minPoint.x + bb.maxPoint.x) / 2,
+                                                       cym * CM - (bb.minPoint.y + bb.maxPoint.y) / 2, 0)
+            s2.move(ents, mv)
+            profs = [s2.profiles.item(i) for i in range(s2.profiles.count)]
+            holes_of = [p for p in profs if p.profileLoops.count >= 2]   # letters with counters (P, R, A)
+            col = adsk.core.ObjectCollection.create()
+            for p in profs:
+                pb = p.boundingBox
+                inside = p.profileLoops.count == 1 and any(
+                    h.boundingBox.minPoint.x < pb.minPoint.x and h.boundingBox.minPoint.y < pb.minPoint.y and
+                    h.boundingBox.maxPoint.x > pb.maxPoint.x and h.boundingBox.maxPoint.y > pb.maxPoint.y
+                    for h in holes_of)
+                if not inside:                           # skip the counters, they are not part of the logo
+                    col.add(p)
+            extrude(root, col, CUT, 'inlay', 'Logo recess', cover, negative=True)
+        optional('logo (SVG import)', logo)
 
         msg = 'Done: bodies Base, Lid, Cover. Change Parameters (Modify) to resize.'
         if SKIPPED:
