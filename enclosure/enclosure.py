@@ -34,9 +34,12 @@ P = dict(
     # extra PCB supports (the board is held by 3 screws): plain posts at free spots (PCB coords), edge ledges with guide fins
     support_d=5.0, supports=[(28.0, 20.5), (83.0, 26.0), (28.5, 64.5), (72.5, 67.5), (14.0, 41.0), (48.0, 37.0)],
     ledge_len=10.0, ledge_under=1.5, fin_t=1.5, fin_gap=0.4, fin_above=2.0,
-    ledges_left=[12.0, 62.0], ledges_right=[20.0, 50.0], ledges_top=[15.0, 80.0],   # ledge centres along each PCB edge
+    ledges_left=[22.0, 62.0], ledges_right=[24.0, 40.0], ledges_top=[15.0, 80.0],   # ledge centres along each PCB edge
     vent_n=6, vent_w=2.0, vent_l=24.0, vent_pitch=10.0, vent_z=30.0,
-    ear_w=14.0, ear_l=16.0, ear_t=3.2, ear_hole=5.2,
+    cover_ledge=3.0,                                           # lid window = cover inset by this much; the cover is glued onto the ledge
+    ear_w=14.0, ear_l=16.0, ear_t=3.2, ear_hole=5.2,           # removable wall-mount ears (printed flat, 4 pcs)
+    tab_t=2.0, tab_l=12.0, tab_gap=0.2,                        # ear tab that slides into a rebate under the base floor
+    ear_screw_x=6.5, ear_screw_dy=3.5, nut_af=5.8, nut_depth=2.6, nut_pad_d=9.0, nut_pad_top=7.0,   # M3 screw + captive nut per screw
 )
 
 
@@ -115,6 +118,21 @@ def cover_geom():
     return (D['outer_w'] / 2 - P['cover_w'] / 2, y0, P['cover_w'], y_top - y0)
 
 
+def ears():
+    """(x of the base side face, y centre, side) of the four ears."""
+    H, W = D['outer_h'], D['outer_w']
+    return [(sx_x, ey, sx) for (sx, sx_x) in ((-1, 0.0), (1, W)) for ey in (0.14 * H, 0.86 * H)]
+
+
+def ear_screws():
+    W = D['outer_w']
+    out = []
+    for (ex, ey, sx) in ears():
+        x = P['ear_screw_x'] if sx < 0 else W - P['ear_screw_x']
+        out += [(x, ey - P['ear_screw_dy'], sx), (x, ey + P['ear_screw_dy'], sx)]
+    return out
+
+
 # ------------------------------------------------------------------ PCB supports
 def supports():
     f, sd = P['floor'], P['standoff']
@@ -157,6 +175,11 @@ def make_base():
         x, y = pcb_xy(px, py)
         m = m + cyl(x, y, f - 0.01, P['standoff'] + 0.01, P['boss_d'])
     m = m + supports()
+    for (x, y, sx) in ear_screws():                                                       # pads for the ear nuts
+        m = m + cyl(x, y, f - 0.01, P['nut_pad_top'] - f + 0.01, P['nut_pad_d'])
+    for (ex, ey, sx) in ears():                                                           # rebates for the ear tabs (open to the side)
+        xa, xb = (-1, P['tab_l']) if sx < 0 else (W - P['tab_l'], W + 1)
+        m = m - box(xa, ey - P['ear_w'] / 2 - P['tab_gap'], -1, xb, ey + P['ear_w'] / 2 + P['tab_gap'], P['tab_t'] + P['tab_gap'])
     for (cx, cy) in corner_posts():
         m = m - cyl(cx, cy, top - P['insert_depth'], P['insert_depth'] + 1, P['insert_d'], 32)
     for (px, py) in P['pcb_holes']:
@@ -172,16 +195,9 @@ def make_base():
         x = cx0 + i * P['vent_pitch']
         m = m - box(x - P['vent_w'] / 2, H - w - 1, P['vent_z'] - P['vent_l'] / 2,
                     x + P['vent_w'] / 2, H + 1, P['vent_z'] + P['vent_l'] / 2)
-    for sx in (-1, 1):                                                                    # wall-mount ears
-        for ey in (0.14 * H, 0.86 * H):
-            if sx < 0:
-                x0, x1 = -P['ear_l'], w + 0.5
-                hx = x0 + P['ear_l'] / 2
-            else:
-                x0, x1 = W - w - 0.5, W + P['ear_l']
-                hx = x1 - P['ear_l'] / 2
-            ear = rprism(x0, ey - P['ear_w'] / 2, x1 - x0, P['ear_w'], 3.0, 0, P['ear_t'])
-            m = m + (ear - cyl(hx, ey, -1, P['ear_t'] + 2, P['ear_hole'], 32))
+    for (x, y, sx) in ear_screws():                                                       # captive nut pockets for the ears
+        m = m - cyl(x, y, -1, P['nut_pad_top'] + 2, P['screw_clear_d'], 32)
+        m = m - cyl(x, y, P['nut_pad_top'] - P['nut_depth'], P['nut_depth'] + 1, P['nut_af'] * 2 / 3 ** 0.5 + 0.2, 6)
     return m
 
 
@@ -200,10 +216,12 @@ def make_lid():
     cx0, cy0, cw, ch = cover_geom()
     ly = (cy0 + ch + (H - 0)) / 2
     m = m - prism(logo_section(), 0, P['inlay'] + 1).translate([W / 2, ly, t - P['inlay']])
-    # shallow pocket for the glued-in cover (no opening: the terminals are reached by taking the lid off)
+    # stepped opening for the glued-in cover: pocket (flush) + through window (the lid is printed face down)
     x0, y0, w, h = cover_geom()
     g = P['cover_gap']
     m = m - rprism(x0 - g, y0 - g, w + 2 * g, h + 2 * g, P['cover_r'] + g, t - P['pocket_d'], t + 1)
+    L = P['cover_ledge']                                   # through window: the cover rests on the ledge around it
+    m = m - rprism(x0 + L, y0 + L, w - 2 * L, h - 2 * L, max(P['cover_r'] - L, 1.0), -P['skirt_h'] - 1, t + 1)
     return m
 
 
@@ -235,6 +253,21 @@ def make_cover():
     return m - prism(emblem_section(), 0, d + 1).translate([x0 + w / 2, y0 + h / 2, ct - d])
 
 
+def make_ear():
+    """Removable wall-mount ear, left-hand version, flat on the bed (rotate 180 deg about Z for the right side).
+    Origin: base side face at x=0, ear centred on y=0. The tab slides into the rebate under the base floor."""
+    ew, el, et = P['ear_w'], P['ear_l'], P['ear_t']
+    plate = rprism(-el, -ew / 2, el + 6, ew, 3.0, 0, et) - box(0.0, -ew, -1, el + 10, ew, et + 1)
+    tab = box(-0.01, -ew / 2, 0, P['tab_l'] - P['tab_gap'], ew / 2, P['tab_t'])
+    m = plate + tab
+    m = m - cyl(-el / 2, 0, -1, et + 2, P['ear_hole'], 32)
+    for sy in (-1, 1):
+        x, y = P['ear_screw_x'], sy * P['ear_screw_dy']
+        m = m - cyl(x, y, -1, P['tab_t'] + 2, P['screw_clear_d'], 32)
+        m = m - cone(x, y, -0.01, 1.5, 6.4, P['screw_clear_d'], 32)
+    return m
+
+
 def to_trimesh(m):
     me = m.to_mesh()
     return trimesh.Trimesh(vertices=np.array(me.vert_properties)[:, :3], faces=np.array(me.tri_verts), process=False)
@@ -242,7 +275,7 @@ def to_trimesh(m):
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "."
-    for name, fn in (("base", make_base), ("lid", make_lid), ("cover", make_cover)):
+    for name, fn in (("base", make_base), ("lid", make_lid), ("cover", make_cover), ("ear", make_ear)):
         t = to_trimesh(fn())
         t.export(f"{out}/{name}.stl")
         e = t.bounds[1] - t.bounds[0]

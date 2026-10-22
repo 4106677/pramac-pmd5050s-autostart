@@ -48,12 +48,18 @@ if __name__ == "__main__":
     import enclosure as E
     b = trimesh.load("base.stl"); l = trimesh.load("lid.stl"); cv = trimesh.load("cover.stl")
     gray, lg, red = (205, 205, 210), (238, 238, 242), (210, 45, 45)
+    ear = trimesh.load("ear.stl"); dark = (90, 90, 96); ear_meshes = []
+    for (ex, ey, sx) in E.ears():
+        e = ear.copy()
+        if sx > 0: e.apply_transform(trimesh.transformations.rotation_matrix(np.pi, [0, 0, 1]))
+        e.apply_translation([ex, ey, 0]); ear_meshes.append(e)
     top, lt, pd = E.D['base_h'], E.P['lid_t'], E.P['pocket_d']
     l1 = l.copy(); l1.apply_translation([0, 0, top])
     c1 = cv.copy(); c1.apply_translation([0, 0, top + lt - pd])
-    render([b, l1, c1], (-48, 0, 28), "iso_closed.png", [gray, lg, red], size=(1500, 1250))
+    render([b, l1, c1] + ear_meshes, (-48, 0, 28), "iso_closed.png", [gray, lg, red] + [dark] * 4, size=(1500, 1250))
     l2 = l.copy(); l2.apply_translation([0, 0, top + 30])
     c2 = cv.copy(); c2.apply_translation([0, 0, top + 30 + lt + 14])
-    render([b, l2, c2], (-62, 0, 22), "iso_all.png", [gray, lg, red], size=(1500, 1500))
-    render([b], (-55, 0, 25), "iso_base.png", [gray])
-    render([b, l1, c1], (0, 0, 0), "front.png", [gray, lg, red], size=(1300, 1300))
+    render([b, l2, c2] + ear_meshes, (-62, 0, 22), "iso_all.png", [gray, lg, red] + [dark] * 4, size=(1500, 1500))
+    render([b] + ear_meshes, (-55, 0, 25), "iso_base.png", [gray] + [dark] * 4)
+    render([ear], (-50, 0, 30), "iso_ear.png", [dark], size=(900, 700))
+    render([b, l1, c1] + ear_meshes, (0, 0, 0), "front.png", [gray, lg, red] + [dark] * 4, size=(1300, 1300))

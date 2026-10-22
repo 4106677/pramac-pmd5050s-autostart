@@ -3,7 +3,7 @@ Pramac autostart: parametric enclosure for Autodesk Fusion (Python script), v3.
 
 Run: Fusion -> UTILITIES -> ADD-INS -> Scripts and Add-Ins (Shift+S) -> "+" -> pick this file -> Run.
 It creates a new parametric design with USER PARAMETERS (Modify -> Change Parameters) and three bodies:
-Base (with PCB support posts, ledges and guide fins), Lid (with a skirt that wraps over a rebate on the base
+Base (with PCB support posts, ledges and guide fins, removable wall-mount Ears), Lid (with a skirt that wraps over a rebate on the base
 walls) and Cover: a screwless inlay glued into the lid pocket with a hazard emblem. The Pramac logo (SVG) is on the
 lid above the cover. Logo and emblem are recessed by 0.05 mm so they can be painted.
 Sketches are dimensioned with the parameters, so editing a parameter rebuilds the model through the timeline.
@@ -69,6 +69,16 @@ PARAMS = [
     ('ear_l', '16', 'wall-mount ear length'),
     ('ear_t', '3.2', 'wall-mount ear thickness'),
     ('ear_hole', '5.2', 'wall-mount hole diameter'),
+    ('tab_t', '2', 'ear tab thickness (slides into a rebate under the base floor)'),
+    ('tab_l', '12', 'rebate length from the side face'),
+    ('tab_gap', '0.2', 'tab clearance in the rebate'),
+    ('ear_screw_x', '6.5', 'ear screw distance from the side face'),
+    ('ear_screw_dy', '3.5', 'ear screws are at the ear centre +/- this'),
+    ('nut_af', '5.8', 'M3 nut across flats (with clearance)'),
+    ('nut_depth', '2.6', 'nut pocket depth'),
+    ('nut_pad_d', '9', 'nut pad diameter'),
+    ('nut_pad_top', '7', 'nut pad top height above the floor underside'),
+    ('cover_ledge', '3', 'lid window = cover inset by this; the cover is glued onto the ledge'),
     # derived
     ('inner_w', 'pcb_w + 2 * margin_side', 'derived'),
     ('inner_h', 'margin_top + pcb_h + gutter', 'derived'),
@@ -88,7 +98,7 @@ PARAMS = [
 PCB_HOLES = [(4.0, 37.0), (47.5, 76.5), (72.5, 75.0)]               # PCB mounting holes (x from left, y from top)
 SLOTS = [(3.6, 13.0), (16.2, 25.6), (28.2, 37.5), (57.8, 67.2), (77.3, 91.7)]   # wire slots, PCB x ranges
 SUPPORTS = [(28.0, 20.5), (83.0, 26.0), (28.5, 64.5), (72.5, 67.5), (14.0, 41.0), (48.0, 37.0)]   # plain posts (PCB x, y)
-LEDGES_LEFT, LEDGES_RIGHT, LEDGES_TOP = [12.0, 62.0], [20.0, 50.0], [15.0, 80.0]   # ledge centres along each PCB edge
+LEDGES_LEFT, LEDGES_RIGHT, LEDGES_TOP = [22.0, 62.0], [24.0, 40.0], [15.0, 80.0]   # ledge centres along each PCB edge
 VENT_N = 6
 LOGO_SVG = 'pramac-logo-vector.svg'   # next to this script
 
@@ -374,18 +384,53 @@ def run(context):
             rect(sk, '%s - vent_w / 2' % cx, 'outer_h - wall', '%s + vent_w / 2' % cx, 'outer_h')
         extrude(root, profiles(sk), CUT, 'vent_l', 'Vent slots', base)
 
-        step = 'base: ears'
-        sk = root.sketches.add(root.xYConstructionPlane); sk.name = 'Ears'
+        step = 'base: ear mounts'
         ey = ['0.14 * outer_h', '0.86 * outer_h']
+        sk = root.sketches.add(pl_floor); sk.name = 'Ear nut pads'
+        scr = []
         for yexpr in ey:
-            rect(sk, '-ear_l', '%s - ear_w / 2' % yexpr, 'wall', '%s + ear_w / 2' % yexpr)
-            rect(sk, 'outer_w - wall', '%s - ear_w / 2' % yexpr, 'outer_w + ear_l', '%s + ear_w / 2' % yexpr)
-        extrude(root, profiles(sk), JOIN, 'ear_t', 'Ears', base)
-        sk = root.sketches.add(root.xYConstructionPlane); sk.name = 'Ear holes'
+            for sxe in ('ear_screw_x', 'outer_w - ear_screw_x'):
+                for dy in ('-', '+'):
+                    scr.append((sxe, '%s %s ear_screw_dy' % (yexpr, dy)))
+        for cx, cy in scr:
+            circle(sk, cx, cy, 'nut_pad_d')
+        extrude(root, profiles(sk), JOIN, 'nut_pad_top - floor_t', 'Ear nut pads', base)
+        sk = root.sketches.add(root.xYConstructionPlane); sk.name = 'Ear tab rebates'
         for yexpr in ey:
-            circle(sk, '-ear_l / 2', yexpr, 'ear_hole')
-            circle(sk, 'outer_w + ear_l / 2', yexpr, 'ear_hole')
-        extrude(root, profiles(sk), CUT, 'ear_t', 'Ear holes', base)
+            rect(sk, '0', '%s - ear_w / 2 - tab_gap' % yexpr, 'tab_l', '%s + ear_w / 2 + tab_gap' % yexpr)
+            rect(sk, 'outer_w - tab_l', '%s - ear_w / 2 - tab_gap' % yexpr, 'outer_w', '%s + ear_w / 2 + tab_gap' % yexpr)
+        extrude(root, profiles(sk), CUT, 'tab_t + tab_gap', 'Ear tab rebates', base)
+        sk = root.sketches.add(root.xYConstructionPlane); sk.name = 'Ear screw holes'
+        for cx, cy in scr:
+            circle(sk, cx, cy, 'screw_clear_d')
+        extrude(root, profiles(sk), CUT, 'nut_pad_top', 'Ear screw holes', base)
+        pl_nut = offset_plane(root, 'nut_pad_top - nut_depth')
+
+        def nut_pockets():
+            s2 = root.sketches.add(pl_nut); s2.name = 'Ear nut pockets'
+            for cx, cy in scr:
+                circle(s2, cx, cy, 'nut_af * 1.1547 + 0.2')       # round pocket; make it hex by hand if you like
+            extrude(root, profiles(s2), CUT, 'nut_depth', 'Ear nut pockets', base)
+        optional('ear nut pockets', nut_pockets)
+
+        # ---- removable ear (separate body, printed flat; left-hand version, rotate 180 deg for the right side)
+        step = 'ear'
+        pl_ear = root.xYConstructionPlane
+        sk = root.sketches.add(pl_ear); sk.name = 'Ear plate'
+        rect(sk, '-ear_l', '-(ear_w + 12)', '0', '-12')
+        ear = extrude(root, profiles(sk), NEW, 'ear_t', 'Ear plate').bodies.item(0)
+        ear.name = 'Ear (print 4)'
+        sk = root.sketches.add(pl_ear); sk.name = 'Ear tab'
+        rect(sk, '0', '-(ear_w + 12)', 'tab_l - tab_gap', '-12')
+        extrude(root, profiles(sk), JOIN, 'tab_t', 'Ear tab', ear)
+        sk = root.sketches.add(pl_ear); sk.name = 'Ear holes'
+        yc = '-(ear_w / 2 + 12)'
+        circle(sk, '-ear_l / 2', yc, 'ear_hole')
+        circle(sk, 'ear_screw_x', '%s - ear_screw_dy' % yc, 'screw_clear_d')
+        circle(sk, 'ear_screw_x', '%s + ear_screw_dy' % yc, 'screw_clear_d')
+        extrude(root, profiles(sk), CUT, 'ear_t', 'Ear holes', ear)
+        optional('ear corner fillets', lambda: fillet_edges(
+            root, vertical_edges(ear, V['ear_t']), '3', 'Ear corners'))
 
         optional('base bottom chamfer', lambda: chamfer_edges(
             root, face_edges_at_z(base, 0.0, -1), 'chamfer_d', 'Base bottom chamfer'))
@@ -417,11 +462,15 @@ def run(context):
             circle(sk, cx, cy, 'csk_d')
         extrude(root, profiles(sk), CUT, 'csk_h', 'Lid screw head recess', lid, negative=True)
 
-        step = 'lid: cover pocket'
+        step = 'lid: cover pocket and window'
         sk = root.sketches.add(pl_lid_top); sk.name = 'Cover pocket'
         rect(sk, 'cover_x0 - cover_gap', 'cover_y0 - cover_gap',
              'cover_x0 + cover_w + cover_gap', 'cover_y1 + cover_gap')
         extrude(root, profiles(sk), CUT, 'pocket_d', 'Cover pocket', lid, negative=True)
+        sk = root.sketches.add(pl_lid_top); sk.name = 'Cover window'
+        rect(sk, 'cover_x0 + cover_ledge', 'cover_y0 + cover_ledge',
+             'cover_x0 + cover_w - cover_ledge', 'cover_y1 - cover_ledge')
+        extrude(root, profiles(sk), CUT, 'lid_t', 'Cover window (through)', lid, negative=True)
         pl_pocket = offset_plane(root, 'base_h + lid_t - pocket_d')
 
         def logo():
