@@ -42,6 +42,8 @@ PARAMS = [
     ('boss_d', '7', 'post diameter'),
     ('insert_d', '4.2', 'hole for M3 brass insert'),
     ('insert_depth', '6', 'insert hole depth in the corner posts'),
+    ('relief_d', '3.4', 'screw relief bore below the inserts'),
+    ('relief_floor', '1.2', 'height above the wall plane where the relief bore stops'),
     ('screw_clear_d', '3.4', 'M3 clearance hole'),
     ('csk_d', '6.8', 'screw head recess diameter in the lid'),
     ('csk_h', '1.7', 'screw head recess depth'),
@@ -360,11 +362,21 @@ def run(context):
         for cx, cy in corners:
             circle(sk, cx, cy, 'insert_d')
         extrude(root, profiles(sk), CUT, 'insert_depth', 'Lid insert holes', base, negative=True)
+        pl_rel_c = offset_plane(root, 'base_h - insert_depth')
+        sk = root.sketches.add(pl_rel_c); sk.name = 'Lid screw relief'
+        for cx, cy in corners:
+            circle(sk, cx, cy, 'relief_d')
+        extrude(root, profiles(sk), CUT, 'base_h - insert_depth - relief_floor', 'Lid screw relief', base, negative=True)
         pl_post = offset_plane(root, 'floor_t + standoff')
         sk = root.sketches.add(pl_post); sk.name = 'PCB insert holes'
         for px, py in PCB_HOLES:
             circle(sk, 'pcb_x0 + %s' % px, 'pcb_ytop - %s' % py, 'insert_d')
         extrude(root, profiles(sk), CUT, '5', 'PCB insert holes', base, negative=True)
+        pl_rel_p = offset_plane(root, 'floor_t + standoff - 5')
+        sk = root.sketches.add(pl_rel_p); sk.name = 'PCB screw relief'
+        for px, py in PCB_HOLES:
+            circle(sk, 'pcb_x0 + %s' % px, 'pcb_ytop - %s' % py, 'relief_d')
+        extrude(root, profiles(sk), CUT, 'floor_t + standoff - 5 - relief_floor', 'PCB screw relief', base, negative=True)
 
         step = 'base: wire slots'
         pl_slot = offset_plane(root, 'floor_t + slot_z0')

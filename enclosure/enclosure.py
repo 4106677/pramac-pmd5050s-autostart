@@ -24,6 +24,7 @@ P = dict(
     skirt_h=6.0, skirt_t=1.2, skirt_gap=0.3,            # lid skirt over the base rebate
     lid_t=4.0, pocket_d=2.0,                            # lid plate thickness, cover pocket depth
     boss_d=7.0, insert_d=4.2, insert_depth=6.0, screw_clear_d=3.4, csk_d=6.8, csk_h=1.7,
+    relief_d=3.4, relief_floor=1.2,                     # screw relief below the inserts: bore down to this height (long screws)
     pcb_holes=[(4.0, 37.0), (47.5, 76.5), (72.5, 75.0)],   # PCB mounting holes (x from left, y from top)
     # wire slots in the bottom wall, one per terminal block (J1, J4, J5, J6 contactor, J2), PCB x ranges
     slots=[(3.6, 13.0), (16.2, 25.6), (28.2, 37.5), (57.8, 67.2), (77.3, 91.7)], slot_z0=4.0, slot_h=22.0,
@@ -186,11 +187,13 @@ def make_base():
     for (ex, ey, sx) in ears():                                                           # rebates for the ear tabs (open to the side)
         cs = trapezoid(ey, slot_half, -1.0, P['tab_l'], None if sx < 0 else W)
         m = m - prism(cs, -1, P['tab_t'] + P['tab_z_gap'])
-    for (cx, cy) in corner_posts():                                                       # M3 insert holes for the lid screws
+    for (cx, cy) in corner_posts():                                                       # M3 insert holes for the lid screws + relief bore below
         m = m - cyl(cx, cy, top - P['insert_depth'], P['insert_depth'] + 1, P['insert_d'], 32)
+        m = m - cyl(cx, cy, P['relief_floor'], top - P['insert_depth'] - P['relief_floor'] + 0.01, P['relief_d'], 32)
     for (px, py) in P['pcb_holes']:
         x, y = pcb_xy(px, py)
         m = m - cyl(x, y, f + P['standoff'] - 5.0, 6.0, P['insert_d'], 32)
+        m = m - cyl(x, y, P['relief_floor'], f + P['standoff'] - 5.0 - P['relief_floor'] + 0.01, P['relief_d'], 32)
     for (a, b) in P['slots']:                                                             # wire slots (bottom wall)
         x0, _ = pcb_xy(a, 0)
         x1, _ = pcb_xy(b, 0)
