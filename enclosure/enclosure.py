@@ -38,8 +38,8 @@ P = dict(
     vent_n=6, vent_w=2.0, vent_l=24.0, vent_pitch=10.0, vent_z=30.0,
     cover_ledge=3.0,                                           # lid window = cover inset by this much; the cover is glued onto the ledge
     ear_w=14.0, ear_l=16.0, ear_t=3.2, ear_hole=5.2,           # removable wall-mount ears (printed flat, 4 pcs)
-    tab_t=2.0, tab_l=12.0, tab_gap=0.2,                        # ear tab that slides into a rebate under the base floor
-    ear_screw_x=6.5, ear_screw_dy=3.5, nut_af=5.8, nut_depth=2.6, nut_pad_d=9.0, nut_pad_top=7.0,   # M3 screw + captive nut per screw
+    tab_t=2.0, tab_l=12.0, tab_taper=1.3,                      # ear tab (trapezoid in plan) that slides into a rebate under the base floor
+    tab_gap=0.25, tab_wedge=0.3, tab_z_gap=0.2,                # side clearance at the mouth, extra taper of the slot (wedge fit), height clearance
 )
 
 
@@ -124,13 +124,21 @@ def ears():
     return [(sx_x, ey, sx) for (sx, sx_x) in ((-1, 0.0), (1, W)) for ey in (0.14 * H, 0.86 * H)]
 
 
-def ear_screws():
-    W = D['outer_w']
-    out = []
-    for (ex, ey, sx) in ears():
-        x = P['ear_screw_x'] if sx < 0 else W - P['ear_screw_x']
-        out += [(x, ey - P['ear_screw_dy'], sx), (x, ey + P['ear_screw_dy'], sx)]
-    return out
+def slot_half(x):
+    """Half-width of the ear rebate at distance x from the base side face (the tab itself is narrower by tab_gap - wedge*x/tab_l)."""
+    return P['ear_w'] / 2 + P['tab_gap'] - (P['tab_taper'] + P['tab_wedge']) * x / P['tab_l']
+
+
+def tab_half(x):
+    return P['ear_w'] / 2 - P['tab_taper'] * x / P['tab_l']
+
+
+def trapezoid(ey, half, xa, xb, mirror_w=None):
+    """Plan-view trapezoid between x=xa and x=xb centred on y=ey; mirrored about x=mirror_w/2 for the right side."""
+    pts = [(xa, ey - half(max(xa, 0))), (xb, ey - half(xb)), (xb, ey + half(xb)), (xa, ey + half(max(xa, 0)))]
+    if mirror_w is not None:
+        pts = [(mirror_w - x, y) for (x, y) in pts][::-1]
+    return CrossSection([np.array(pts)])
 
 
 # ------------------------------------------------------------------ PCB supports
@@ -175,13 +183,9 @@ def make_base():
         x, y = pcb_xy(px, py)
         m = m + cyl(x, y, f - 0.01, P['standoff'] + 0.01, P['boss_d'])
     m = m + supports()
-    for (x, y, sx) in ear_screws():                                                       # pads for the ear nuts
-        m = m + cyl(x, y, f - 0.01, P['nut_pad_top'] - f + 0.01, P['nut_pad_d'])
     for (ex, ey, sx) in ears():                                                           # rebates for the ear tabs (open to the side)
-        xa, xb = (-1, P['tab_l']) if sx < 0 else (W - P['tab_l'], W + 1)
-        m = m - box(xa, ey - P['ear_w'] / 2 - P['tab_gap'], -1, xb, ey + P['ear_w'] / 2 + P['tab_gap'], P['tab_t'] + P['tab_gap'])
-    for (cx, cy) in corner_posts():
-        m = m - cyl(cx, cy, top - P['insert_depth'], P['insert_depth'] + 1, P['insert_d'], 32)
+        cs = trapezoid(ey, slot_half, -1.0, P['tab_l'], None if sx < 0 else W)
+        m = m - prism(cs, -1, P['tab_t'] + P['tab_z_gap'])
     for (px, py) in P['pcb_holes']:
         x, y = pcb_xy(px, py)
         m = m - cyl(x, y, f + P['standoff'] - 5.0, 6.0, P['insert_d'], 32)
@@ -195,9 +199,6 @@ def make_base():
         x = cx0 + i * P['vent_pitch']
         m = m - box(x - P['vent_w'] / 2, H - w - 1, P['vent_z'] - P['vent_l'] / 2,
                     x + P['vent_w'] / 2, H + 1, P['vent_z'] + P['vent_l'] / 2)
-    for (x, y, sx) in ear_screws():                                                       # captive nut pockets for the ears
-        m = m - cyl(x, y, -1, P['nut_pad_top'] + 2, P['screw_clear_d'], 32)
-        m = m - cyl(x, y, P['nut_pad_top'] - P['nut_depth'], P['nut_depth'] + 1, P['nut_af'] * 2 / 3 ** 0.5 + 0.2, 6)
     return m
 
 
@@ -255,17 +256,13 @@ def make_cover():
 
 def make_ear():
     """Removable wall-mount ear, left-hand version, flat on the bed (rotate 180 deg about Z for the right side).
-    Origin: base side face at x=0, ear centred on y=0. The tab slides into the rebate under the base floor."""
+    Origin: base side face at x=0, ear centred on y=0. The trapezoid tab is pushed sideways into the rebate under the
+    base floor and wedges in without any fastener."""
     ew, el, et = P['ear_w'], P['ear_l'], P['ear_t']
     plate = rprism(-el, -ew / 2, el + 6, ew, 3.0, 0, et) - box(0.0, -ew, -1, el + 10, ew, et + 1)
-    tab = box(-0.01, -ew / 2, 0, P['tab_l'] - P['tab_gap'], ew / 2, P['tab_t'])
+    tab = prism(trapezoid(0.0, tab_half, -0.01, P['tab_l'] - 0.2), 0, P['tab_t'])
     m = plate + tab
-    m = m - cyl(-el / 2, 0, -1, et + 2, P['ear_hole'], 32)
-    for sy in (-1, 1):
-        x, y = P['ear_screw_x'], sy * P['ear_screw_dy']
-        m = m - cyl(x, y, -1, P['tab_t'] + 2, P['screw_clear_d'], 32)
-        m = m - cone(x, y, -0.01, 1.5, 6.4, P['screw_clear_d'], 32)
-    return m
+    return m - cyl(-el / 2, 0, -1, et + 2, P['ear_hole'], 32)
 
 
 def to_trimesh(m):

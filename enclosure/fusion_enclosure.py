@@ -71,13 +71,10 @@ PARAMS = [
     ('ear_hole', '5.2', 'wall-mount hole diameter'),
     ('tab_t', '2', 'ear tab thickness (slides into a rebate under the base floor)'),
     ('tab_l', '12', 'rebate length from the side face'),
-    ('tab_gap', '0.2', 'tab clearance in the rebate'),
-    ('ear_screw_x', '6.5', 'ear screw distance from the side face'),
-    ('ear_screw_dy', '3.5', 'ear screws are at the ear centre +/- this'),
-    ('nut_af', '5.8', 'M3 nut across flats (with clearance)'),
-    ('nut_depth', '2.6', 'nut pocket depth'),
-    ('nut_pad_d', '9', 'nut pad diameter'),
-    ('nut_pad_top', '7', 'nut pad top height above the floor underside'),
+    ('tab_taper', '1.3', 'tab taper per side over its length (trapezoid)'),
+    ('tab_gap', '0.25', 'tab side clearance at the rebate mouth'),
+    ('tab_wedge', '0.3', 'extra taper of the rebate: the tab wedges in at the end'),
+    ('tab_z_gap', '0.2', 'rebate height clearance'),
     ('cover_ledge', '3', 'lid window = cover inset by this; the cover is glued onto the ledge'),
     # derived
     ('inner_w', 'pcb_w + 2 * margin_side', 'derived'),
@@ -384,34 +381,30 @@ def run(context):
             rect(sk, '%s - vent_w / 2' % cx, 'outer_h - wall', '%s + vent_w / 2' % cx, 'outer_h')
         extrude(root, profiles(sk), CUT, 'vent_l', 'Vent slots', base)
 
-        step = 'base: ear mounts'
+        step = 'base: ear rebates'
         ey = ['0.14 * outer_h', '0.86 * outer_h']
-        sk = root.sketches.add(pl_floor); sk.name = 'Ear nut pads'
-        scr = []
-        for yexpr in ey:
-            for sxe in ('ear_screw_x', 'outer_w - ear_screw_x'):
-                for dy in ('-', '+'):
-                    scr.append((sxe, '%s %s ear_screw_dy' % (yexpr, dy)))
-        for cx, cy in scr:
-            circle(sk, cx, cy, 'nut_pad_d')
-        extrude(root, profiles(sk), JOIN, 'nut_pad_top - floor_t', 'Ear nut pads', base)
-        sk = root.sketches.add(root.xYConstructionPlane); sk.name = 'Ear tab rebates'
-        for yexpr in ey:
-            rect(sk, '0', '%s - ear_w / 2 - tab_gap' % yexpr, 'tab_l', '%s + ear_w / 2 + tab_gap' % yexpr)
-            rect(sk, 'outer_w - tab_l', '%s - ear_w / 2 - tab_gap' % yexpr, 'outer_w', '%s + ear_w / 2 + tab_gap' % yexpr)
-        extrude(root, profiles(sk), CUT, 'tab_t + tab_gap', 'Ear tab rebates', base)
-        sk = root.sketches.add(root.xYConstructionPlane); sk.name = 'Ear screw holes'
-        for cx, cy in scr:
-            circle(sk, cx, cy, 'screw_clear_d')
-        extrude(root, profiles(sk), CUT, 'nut_pad_top', 'Ear screw holes', base)
-        pl_nut = offset_plane(root, 'nut_pad_top - nut_depth')
 
-        def nut_pockets():
-            s2 = root.sketches.add(pl_nut); s2.name = 'Ear nut pockets'
-            for cx, cy in scr:
-                circle(s2, cx, cy, 'nut_af * 1.1547 + 0.2')       # round pocket; make it hex by hand if you like
-            extrude(root, profiles(s2), CUT, 'nut_depth', 'Ear nut pockets', base)
-        optional('ear nut pockets', nut_pockets)
+        def trapezoid(sk2, yc, half, xa, xb, mirror):
+            """Plan-view trapezoid (numeric points: re-run the script after changing the tab parameters)."""
+            pts = [(xa, yc - half(max(xa, 0))), (xb, yc - half(xb)), (xb, yc + half(xb)), (xa, yc + half(max(xa, 0)))]
+            if mirror:
+                pts = [(V['outer_w'] - x, y) for x, y in pts]
+            for k in range(4):
+                a, b = pts[k], pts[(k + 1) % 4]
+                sk2.sketchCurves.sketchLines.addByTwoPoints(P3(a[0], a[1]), P3(b[0], b[1]))
+
+        def slot_half(x):
+            return V['ear_w'] / 2 + V['tab_gap'] - (V['tab_taper'] + V['tab_wedge']) * x / V['tab_l']
+
+        def tab_half(x):
+            return V['ear_w'] / 2 - V['tab_taper'] * x / V['tab_l']
+
+        sk = root.sketches.add(root.xYConstructionPlane); sk.name = 'Ear rebates'
+        for yexpr in ey:
+            yc = ev(yexpr)
+            trapezoid(sk, yc, slot_half, -1.0, V['tab_l'], False)
+            trapezoid(sk, yc, slot_half, -1.0, V['tab_l'], True)
+        extrude(root, profiles(sk), CUT, 'tab_t + tab_z_gap', 'Ear rebates', base)
 
         # ---- removable ear (separate body, printed flat; left-hand version, rotate 180 deg for the right side)
         step = 'ear'
@@ -420,15 +413,13 @@ def run(context):
         rect(sk, '-ear_l', '-(ear_w + 12)', '0', '-12')
         ear = extrude(root, profiles(sk), NEW, 'ear_t', 'Ear plate').bodies.item(0)
         ear.name = 'Ear (print 4)'
+        yc = -(V['ear_w'] / 2 + 12)
         sk = root.sketches.add(pl_ear); sk.name = 'Ear tab'
-        rect(sk, '0', '-(ear_w + 12)', 'tab_l - tab_gap', '-12')
+        trapezoid(sk, yc, tab_half, -0.01, V['tab_l'] - 0.2, False)
         extrude(root, profiles(sk), JOIN, 'tab_t', 'Ear tab', ear)
-        sk = root.sketches.add(pl_ear); sk.name = 'Ear holes'
-        yc = '-(ear_w / 2 + 12)'
-        circle(sk, '-ear_l / 2', yc, 'ear_hole')
-        circle(sk, 'ear_screw_x', '%s - ear_screw_dy' % yc, 'screw_clear_d')
-        circle(sk, 'ear_screw_x', '%s + ear_screw_dy' % yc, 'screw_clear_d')
-        extrude(root, profiles(sk), CUT, 'ear_t', 'Ear holes', ear)
+        sk = root.sketches.add(pl_ear); sk.name = 'Ear hole'
+        circle(sk, '-ear_l / 2', '-(ear_w / 2 + 12)', 'ear_hole')
+        extrude(root, profiles(sk), CUT, 'ear_t', 'Ear hole', ear)
         optional('ear corner fillets', lambda: fillet_edges(
             root, vertical_edges(ear, V['ear_t']), '3', 'Ear corners'))
 
