@@ -186,6 +186,8 @@ def make_base():
     for (ex, ey, sx) in ears():                                                           # rebates for the ear tabs (open to the side)
         cs = trapezoid(ey, slot_half, -1.0, P['tab_l'], None if sx < 0 else W)
         m = m - prism(cs, -1, P['tab_t'] + P['tab_z_gap'])
+    for (cx, cy) in corner_posts():                                                       # M3 insert holes for the lid screws
+        m = m - cyl(cx, cy, top - P['insert_depth'], P['insert_depth'] + 1, P['insert_d'], 32)
     for (px, py) in P['pcb_holes']:
         x, y = pcb_xy(px, py)
         m = m - cyl(x, y, f + P['standoff'] - 5.0, 6.0, P['insert_d'], 32)
