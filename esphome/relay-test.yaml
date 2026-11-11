@@ -1,0 +1,116 @@
+# Тестова прошивка для перевірки пайки плати v5 / v5.1.
+#
+# Реле клацають по колу:
+#   K1 ACC (D2)        1 раз,  пауза 3 с
+#   K2 START (D4)      2 рази, пауза 3 с
+#   K3 CONTACTOR (D26) 3 рази, пауза 3 с
+# Синій світлодіод ESP32 сидить на D2, тож блимає разом з K1.
+#
+# Заодно в лог (USB, 115200) пишуться вхід REMOTE (D25) і імпульси TAHO (D14),
+# щоб перевірити й ці ланцюги: замкніть REMOTE на GND або подайте сигнал на TAHO.
+#
+# ⚠️ На час тесту від'єднайте дроти ACC/START (J5) і CONTACTOR (J6):
+# реле справді замикають +12 В на виходи і контакти контактора.
+#
+# Wi-Fi, API та OTA немає: шиється по USB, секрети не потрібні.
+
+substitutions:
+  click_on: 300ms     # скільки реле тримається увімкненим за один клац
+  click_off: 400ms    # пауза між клацами одного реле
+  pause: 3s           # пауза між реле
+
+esphome:
+  name: pramac-relay-test
+  friendly_name: Pramac relay test
+  on_boot:
+    priority: -100
+    then:
+      - delay: 2s
+      - while:
+          condition:
+            lambda: 'return true;'
+          then:
+            - logger.log: "K1 ACC (D2): 1 клац"
+            - script.execute: { id: click, relay: 1, times: 1 }
+            - script.wait: click
+            - delay: ${pause}
+            - logger.log: "K2 START (D4): 2 клаци"
+            - script.execute: { id: click, relay: 2, times: 2 }
+            - script.wait: click
+            - delay: ${pause}
+            - logger.log: "K3 CONTACTOR (D26): 3 клаци"
+            - script.execute: { id: click, relay: 3, times: 3 }
+            - script.wait: click
+            - delay: ${pause}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+  level: DEBUG
+  logs:
+    sensor: INFO
+    pulse_counter: INFO
+
+# Реле на платі: NPN-драйвер, HIGH = реле увімкнене
+output:
+  - platform: gpio
+    id: k1_acc
+    pin: GPIO2
+  - platform: gpio
+    id: k2_start
+    pin: GPIO4
+  - platform: gpio
+    id: k3_contactor
+    pin: GPIO26
+
+script:
+  - id: click
+    mode: single
+    parameters:
+      relay: int
+      times: int
+    then:
+      - repeat:
+          count: !lambda 'return times;'
+          then:
+            - lambda: |-
+                if (relay == 1) id(k1_acc).turn_on();
+                else if (relay == 2) id(k2_start).turn_on();
+                else id(k3_contactor).turn_on();
+            - delay: ${click_on}
+            - lambda: |-
+                id(k1_acc).turn_off();
+                id(k2_start).turn_off();
+                id(k3_contactor).turn_off();
+            - delay: ${click_off}
+
+binary_sensor:
+  - platform: gpio
+    name: "REMOTE"
+    pin:
+      number: GPIO25
+      mode: INPUT_PULLUP
+      inverted: true            # замкнено на GND = ON
+    filters:
+      - delayed_on_off: 50ms
+    on_press:
+      - logger.log: "REMOTE: замкнено"
+    on_release:
+      - logger.log: "REMOTE: розімкнено"
+
+sensor:
+  - platform: pulse_counter
+    pin: GPIO14
+    name: "TAHO імп/хв"
+    update_interval: 2s
+    on_value:
+      - if:
+          condition:
+            lambda: 'return x > 0;'
+          then:
+            - logger.log:
+                format: "TAHO: %.0f імп/хв (~%.0f об/хв при 6 імп/оберт)"
+                args: ['x', 'x / 6.0']
