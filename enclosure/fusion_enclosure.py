@@ -138,18 +138,45 @@ def offset_plane(root, expr):
     return root.constructionPlanes.add(pin)
 
 
+FIXED = {}  # sketch name -> sketch points whose x and y are already fixed by dimensions/constraints
+
+
+def align(sk, p, axis):
+    """Fusion refuses a dimension from the origin to a point that shares x (or y) with an already fixed point
+    of the same sketch (VCS_SKETCH_OVER_CONSTRAINTS). Tie the point to that one instead: vertical points for a
+    shared x, horizontal points for a shared y. Same parametric result."""
+    for q in FIXED.get(sk.name, []):
+        if abs(getattr(q.geometry, axis) - getattr(p.geometry, axis)) < 1e-9:
+            if axis == 'x':
+                sk.geometricConstraints.addVerticalPoints(q, p)
+            else:
+                sk.geometricConstraints.addHorizontalPoints(q, p)
+            return True
+    return False
+
+
 def dim_h(sk, p0, p1, expr, ty):
-    d = sk.sketchDimensions.addDistanceDimension(
-        p0, p1, adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
-        adsk.core.Point3D.create((p0.geometry.x + p1.geometry.x) / 2, ty, 0))
+    try:
+        d = sk.sketchDimensions.addDistanceDimension(
+            p0, p1, adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
+            adsk.core.Point3D.create((p0.geometry.x + p1.geometry.x) / 2, ty, 0))
+    except RuntimeError as e:
+        if 'OVER_CONSTRAINTS' in str(e) and align(sk, p1, 'x'):
+            return None
+        raise
     d.parameter.expression = expr
     return d
 
 
 def dim_v(sk, p0, p1, expr, tx):
-    d = sk.sketchDimensions.addDistanceDimension(
-        p0, p1, adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
-        adsk.core.Point3D.create(tx, (p0.geometry.y + p1.geometry.y) / 2, 0))
+    try:
+        d = sk.sketchDimensions.addDistanceDimension(
+            p0, p1, adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
+            adsk.core.Point3D.create(tx, (p0.geometry.y + p1.geometry.y) / 2, 0))
+    except RuntimeError as e:
+        if 'OVER_CONSTRAINTS' in str(e) and align(sk, p1, 'y'):
+            return None
+        raise
     d.parameter.expression = expr
     return d
 
@@ -170,14 +197,15 @@ def rect(sk, x0e, y0e, x1e, y1e):
     org = sk.originPoint
     if abs(x0) > 1e-9:
         dim_h(sk, org, ll, x0e if x0 > 0 else '-(%s)' % x0e, (y0 - 4) * CM)
-    else:
+    elif not align(sk, ll, 'x'):
         sk.geometricConstraints.addVerticalPoints(org, ll)
     if abs(y0) > 1e-9:
         dim_v(sk, org, ll, y0e if y0 > 0 else '-(%s)' % y0e, (x0 - 4) * CM)
-    else:
+    elif not align(sk, ll, 'y'):
         sk.geometricConstraints.addHorizontalPoints(org, ll)
     dim_h(sk, ll, ur, '(%s) - (%s)' % (x1e, x0e), (y0 - 2) * CM)
     dim_v(sk, ll, ur, '(%s) - (%s)' % (y1e, y0e), (x0 - 2) * CM)
+    FIXED.setdefault(sk.name, []).extend(pts)
     return lines
 
 
@@ -191,6 +219,7 @@ def circle(sk, cxe, cye, dexpr):
         dim_v(sk, org, c.centerSketchPoint, cye if cy >= 0 else '-(%s)' % cye, (cx - 6) * CM)
     dd = sk.sketchDimensions.addDiameterDimension(c, P3(cx + d, cy + d))
     dd.parameter.expression = dexpr
+    FIXED.setdefault(sk.name, []).append(c.centerSketchPoint)
     return c
 
 
@@ -238,6 +267,19 @@ def vertical_edges(body, length_mm, tol=0.05):
     return out
 
 
+def corner_edges(body, xs, ys, tol=0.01):
+    """Vertical line edges standing at the given (x, y) corners (mm), whatever their length."""
+    out = adsk.core.ObjectCollection.create()
+    for e in body.edges:
+        g = e.geometry
+        if isinstance(g, adsk.core.Line3D):
+            a, b = g.startPoint, g.endPoint
+            if abs(a.x - b.x) + abs(a.y - b.y) < 1e-6 and abs(a.z - b.z) > 1e-6:
+                if any(abs(a.x / CM - x) < tol for x in xs) and any(abs(a.y / CM - y) < tol for y in ys):
+                    out.add(e)
+    return out
+
+
 def fillet_edges(root, edges, radius_expr, name):
     fil = root.features.filletFeatures
     inp = fil.createInput()
@@ -248,15 +290,23 @@ def fillet_edges(root, edges, radius_expr, name):
 
 
 def face_edges_at_z(body, z_mm, normal_z, tol=0.01):
-    """Outer edges of the planar face at height z with the given normal sign (+1 up, -1 down)."""
-    out = adsk.core.ObjectCollection.create()
+    """Outer-loop edges of the largest planar face at height z with the given normal sign (+1 up, -1 down).
+    Inner loops (pockets, screw recesses, logo) are left alone, and so are the small islands the logo leaves
+    inside its letters (they are separate faces at the same height)."""
+    best = None
     for fc in body.faces:
         if fc.geometry.surfaceType != adsk.core.SurfaceTypes.PlaneSurfaceType:
             continue
-        n = fc.geometry.normal
-        if abs(abs(n.z) - 1) < 1e-6 and n.z * normal_z > 0 and abs(fc.centroid.z / CM - z_mm) < tol:
-            for e in fc.edges:
-                out.add(e)
+        ok, n = fc.evaluator.getNormalAtPoint(fc.pointOnFace)   # outward normal (geometry.normal may be flipped)
+        if ok and abs(abs(n.z) - 1) < 1e-6 and n.z * normal_z > 0 and abs(fc.centroid.z / CM - z_mm) < tol:
+            if best is None or fc.area > best.area:
+                best = fc
+    out = adsk.core.ObjectCollection.create()
+    if best is not None:
+        for lp in best.loops:
+            if lp.isOuter:
+                for e in lp.edges:
+                    out.add(e)
     return out
 
 
@@ -305,13 +355,17 @@ def run(context):
             fillet_edges(root, vertical_edges(base, V['base_h'] - V['skirt_h']), 'corner_r', 'Base corners'),
             fillet_edges(root, vertical_edges(base, V['skirt_h']), 'corner_r - rebate', 'Base rebate corners')))
 
+        optional('base bottom chamfer', lambda: chamfer_edges(
+            root, face_edges_at_z(base, 0.0, -1), 'chamfer_d', 'Base bottom chamfer'))
+
         step = 'base: cavity'
         pl_floor = offset_plane(root, 'floor_t')
         sk = root.sketches.add(pl_floor); sk.name = 'Cavity'
         rect(sk, 'wall', 'wall', 'outer_w - wall', 'outer_h - wall')
         extrude(root, profiles(sk), CUT, 'inner_d', 'Cavity cut', base)
         optional('base inner corner fillets', lambda: fillet_edges(
-            root, vertical_edges(base, V['inner_d']), 'corner_r - wall', 'Cavity corners'))
+            root, corner_edges(base, [V['wall'], V['outer_w'] - V['wall']], [V['wall'], V['outer_h'] - V['wall']]),
+            'corner_r - wall', 'Cavity corners'))
 
         step = 'base: corner posts'
         sk = root.sketches.add(pl_floor); sk.name = 'Corner posts'
@@ -435,8 +489,6 @@ def run(context):
         optional('ear corner fillets', lambda: fillet_edges(
             root, vertical_edges(ear, V['ear_t']), '3', 'Ear corners'))
 
-        optional('base bottom chamfer', lambda: chamfer_edges(
-            root, face_edges_at_z(base, 0.0, -1), 'chamfer_d', 'Base bottom chamfer'))
 
         # ================================================================ LID
         step = 'lid: plate'
@@ -480,19 +532,18 @@ def run(context):
             """Imports the SVG, scales it to logo_h, centres it in the free area of the lid above the cover and recesses it by `inlay`."""
             import os
             svg = os.path.join(os.path.dirname(os.path.abspath(__file__)), LOGO_SVG)
-            s2 = root.sketches.add(pl_lid_top); s2.name = 'Logo'
-            s2.importSVG(svg, 0, 0, 1.0)
-            ents = adsk.core.ObjectCollection.create()
-            for c in s2.sketchCurves:
-                ents.add(c)
-            bb = s2.boundingBox
+            # Imported SVG curves are fixed, so Sketch.scale/move refuse them. Import once to measure, then
+            # re-import with importSVG's own scale and position (it maps linearly) so the logo is logo_h tall
+            # and centred in the free area of the lid above the cover.
+            s1 = root.sketches.add(pl_lid_top)
+            s1.importSVG(svg, 0, 0, 1.0)
+            bb = s1.boundingBox
+            s1.deleteMe()
             k = V['logo_h'] * CM / (bb.maxPoint.y - bb.minPoint.y)
-            s2.scale(ents, s2.originPoint, k)
-            bb = s2.boundingBox
-            mv = adsk.core.Matrix3D.create()
-            mv.translation = adsk.core.Vector3D.create((V['outer_w'] / 2) * CM - (bb.minPoint.x + bb.maxPoint.x) / 2,
-                                                       ((V['cover_y1'] + V['outer_h']) / 2) * CM - (bb.minPoint.y + bb.maxPoint.y) / 2, 0)
-            s2.move(ents, mv)
+            px = (V['outer_w'] / 2) * CM - k * (bb.minPoint.x + bb.maxPoint.x) / 2
+            py = ((V['cover_y1'] + V['outer_h']) / 2) * CM - k * (bb.minPoint.y + bb.maxPoint.y) / 2
+            s2 = root.sketches.add(pl_lid_top); s2.name = 'Logo'
+            s2.importSVG(svg, px, py, k)
             profs = [s2.profiles.item(i) for i in range(s2.profiles.count)]
             holes_of = [p for p in profs if p.profileLoops.count >= 2]   # letters with counters (P, R, A)
             col = adsk.core.ObjectCollection.create()
