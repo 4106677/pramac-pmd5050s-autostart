@@ -1,0 +1,36 @@
+# Картка Home Assistant для другого генератора: плата v5.1, пристрій ESPHome "genset" (friendly_name: Genset).
+# Ставиться поруч із карткою generator-card.yaml першого генератора (pramac-pmd5050s).
+# entity_id HA будує з назви пристрою та назв сутностей; якщо якийсь показує "Сутність недоступна",
+# звірте його в Налаштування → Пристрої → Genset.
+type: grid
+cards:
+  - type: heading
+    heading: Генератор 2 · Genset
+    icon: mdi:engine
+  - type: gauge
+    entity: sensor.genset_oberti_dviguna
+    name: Обороты двигателя
+    unit: RPM
+    min: 0
+    max: 4000
+    needle: true
+    segments:
+      - { from: 0,    color: "#9e9e9e" }   # стоїть / стартер
+      - { from: 1000, color: "#ffa000" }   # розгін, просідання
+      - { from: 2800, color: "#43a047" }   # робочі ~3000 (50 Гц)
+      - { from: 3200, color: "#e53935" }   # перевищення
+  - type: entities
+    show_header_toggle: false
+    entities:
+      - entity: switch.genset_zapusk_z_ha
+        name: Запуск из HA
+        tap_action:
+          action: toggle
+          confirmation:
+            text: Запустить / заглушить генератор 2?
+      - { entity: binary_sensor.genset_dvigun_pratsiuie,      name: Двигатель работает }
+      - { entity: binary_sensor.genset_kontakt_start_stop,    name: Контакт старт/стоп }
+      - { entity: binary_sensor.genset_kontaktor_zamknenii,   name: Контактор замкнут }
+      - { entity: binary_sensor.genset_ne_vdalos_zavesti,     name: Ошибка запуска }
+      - { entity: sensor.genset_oberti_dviguna,               name: Обороты двигателя }
+      - { entity: sensor.genset_motochasy,                    name: Моточасы }
