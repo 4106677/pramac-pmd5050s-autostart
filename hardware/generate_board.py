@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pramac PMD5050S carrier board generator (KiCad pcbnew API). Run with KiCad's python."""
+"""Pramac PMD5050S carrier board v5.1 generator (KiCad pcbnew API). Run with KiCad's python."""
 import heapq, math, sys
 import pcbnew
 from pcbnew import VECTOR2I, FromMM, ToMM
@@ -80,19 +80,23 @@ place("K3", *RELAY, 63.5, 62.5, 90, value="SRD-05VDC-SL-A CONTACTOR")
 # top-left: caps and power parts (tall parts live here, outside the ESP32 module footprint)
 place("C1", "Capacitor_THT", "CP_Radial_D18.0mm_P7.50mm", 9, 13, value="4700u 25V")
 place("C2", "Capacitor_THT", "CP_Radial_D18.0mm_P7.50mm", 29, 13, value="4700u 25V")
-place("D3", *D15V, 3.5, 29.5, value="P6KE36A (P6KE20A recommended)")
-place("D1", *D201V, 21, 29.5, 180, value="1N5821")
-place("D2", *D201V, 32, 29.5, 180, value="1N5821")
+# v5.1: D1/D2 moved left to clear the RM20S body (it faces D2), D3 below the H1 hole, F1 below D3
+place("D3", *D15V, 3.5, 43.2, value="P6KE36A (P6KE20A recommended)")
+place("D1", *D201V, 18.2, 29.5, 180, value="1N5821")
+place("D2", *D201V, 27.3, 29.5, 180, value="1N5821")
 place("RM1", *HDR3, 37, 26.5, value="Favotek RM20S-050 SIP-3: 1 +VIN, 2 GND, 3 +VOUT")
 for _p in FP["RM1"].Pads():            # datasheet: pitch 2.54, hole 1.2
     _p.SetSize(VECTOR2I(FromMM(2.0), FromMM(2.0))); _p.SetDrillSize(VECTOR2I(FromMM(1.2), FromMM(1.2)))
 _r = pcbnew.PCB_SHAPE(board); _r.SetShape(pcbnew.SHAPE_T_RECT); _r.SetLayer(pcbnew.F_SilkS); _r.SetWidth(FromMM(0.15))
-_r.SetStart(VECTOR2I(FromMM(37 - 2.15), FromMM(29.04 - 5.75))); _r.SetEnd(VECTOR2I(FromMM(37 + 6.85), FromMM(29.04 + 5.75)))
+# v5.1: the module body sits on the D2 side of the pins (checked on a real v5 board; v5 drew it on the wrong side)
+_r.SetStart(VECTOR2I(FromMM(37 - 6.85), FromMM(29.04 - 5.75))); _r.SetEnd(VECTOR2I(FromMM(37 + 2.15), FromMM(29.04 + 5.75)))
 board.Add(_r)
-place("F1", "Fuse", "Fuse_Littelfuse_372_D8.50mm", 6.5, 50, 90, value="KLS5-102-5RT-020H 2A slow")
+place("F1", "Fuse", "Fuse_Littelfuse_372_D8.50mm", 6.5, 53.2, 90, value="KLS5-102-5RT-020H 2A slow")
 # ESP32 30-pin DevKit V1, rotated 90 deg: antenna left, USB right (USB hangs over the right edge)
-place("U1A", "Connector_PinSocket_2.54mm", "PinSocket_1x15_P2.54mm_Vertical", 53, 32.4, 90, value="ESP32 bottom row")
-place("U1B", "Connector_PinSocket_2.54mm", "PinSocket_1x15_P2.54mm_Vertical", 53, 7.0, 90, value="ESP32 top row")
+# v5.1: 2 mm higher than v5 to free the band between the module and K1/K2 for the supercap SC1
+ESP_Y = 30.4
+place("U1A", "Connector_PinSocket_2.54mm", "PinSocket_1x15_P2.54mm_Vertical", 53, ESP_Y, 90, value="ESP32 bottom row")
+place("U1B", "Connector_PinSocket_2.54mm", "PinSocket_1x15_P2.54mm_Vertical", 53, ESP_Y - 25.4, 90, value="ESP32 top row")
 # low parts under the ESP32 module: TAHO conditioning and relay drivers
 # relay drivers K1/K2 under the ESP32 module (low parts)
 place("Q2", *TO92, 62, 12.6, value="BC337")
@@ -117,12 +121,39 @@ place("R4", *RV, 66.5, 42, value="100k")
 place("R5", *RV, 80, 49.6, value="4.7k")
 place("R6", *RV, 80, 53.3, value="1k")
 place("C5", "Capacitor_SMD", "C_0805_2012Metric", 77.3, 40.5, 90, value="100n")
-place("C6", "Capacitor_SMD", "C_0805_2012Metric", 72, 28.8, 90, value="100n")
+place("C6", "Capacitor_SMD", "C_0805_2012Metric", 72, 26.3, 90, value="100n")
 place("R1", *RV, 79.6, 56.5, value="22k")
 place("D4", *D35V, 79.6, 61.2, value="BZX55C5V1")
 place("D5", *D35V, 87.9, 61.2, 180, value="BZX55C5V1")
 # right strip below the module (tall parts allowed)
-place("SC1", *HDR2, 56, 38, value="Supercap 1F 5.5V +/-")
+# SC1: JEC SMD05R5S0001DARZ 1 F 5.5 V, oval can 16 x 8 x 14 mm standing on its own leads (pitch 11.8, d 0.6),
+# long axis along x in the band between the ESP32 module edge (y 31.85) and the K1/K2 relays (y 42.4)
+SC_X, SC_Y, SC_P = 41.9, 37.3, 11.8           # pad 1 (+) position, lead pitch
+fp_ = place("SC1", "Capacitor_THT", "CP_Radial_D5.0mm_P2.00mm", SC_X, SC_Y, value="JEC SMD05R5S0001DARZ 1F 5.5V")
+for _n in ("1", "2"):
+    _p = pad("SC1", _n)
+    _p.SetDrillSize(VECTOR2I(FromMM(1.0), FromMM(1.0))); _p.SetSize(VECTOR2I(FromMM(1.8), FromMM(1.8)))
+    if _n == "2": _p.SetFPRelativePosition(VECTOR2I(FromMM(SC_P), 0))
+for _g in fp_.GraphicalItems():           # drop the stock D5 graphics (moved to an unplotted layer; Remove() crashes SWIG)
+    _g.SetLayer(pcbnew.Cmts_User)
+fp_.Models().clear()                          # no 3D model for the JEC can (the stock one is a D5 electrolytic)
+def _fpline(fp, layer, a, b, w=0.15):
+    g = pcbnew.PCB_SHAPE(fp); g.SetShape(pcbnew.SHAPE_T_SEGMENT); g.SetLayer(layer); g.SetWidth(FromMM(w))
+    g.SetStart(VECTOR2I(FromMM(a[0]), FromMM(a[1]))); g.SetEnd(VECTOR2I(FromMM(b[0]), FromMM(b[1]))); fp.Add(g)
+def _fparc(fp, layer, c, start, ang, w=0.15):
+    g = pcbnew.PCB_SHAPE(fp); g.SetShape(pcbnew.SHAPE_T_ARC); g.SetLayer(layer); g.SetWidth(FromMM(w))
+    g.SetCenter(VECTOR2I(FromMM(c[0]), FromMM(c[1]))); g.SetStart(VECTOR2I(FromMM(start[0]), FromMM(start[1])))
+    g.SetArcAngleAndEnd(pcbnew.EDA_ANGLE(ang, pcbnew.DEGREES_T)); fp.Add(g)
+def _stadium(fp, layer, cx, cy, L, D, w=0.15):
+    r = D / 2.0; xa, xb = cx - L / 2.0 + r, cx + L / 2.0 - r
+    _fpline(fp, layer, (xa, cy - r), (xb, cy - r), w); _fpline(fp, layer, (xa, cy + r), (xb, cy + r), w)
+    _fparc(fp, layer, (xb, cy), (xb, cy - r), 180, w); _fparc(fp, layer, (xa, cy), (xa, cy + r), 180, w)
+_scx, _scy = SC_X + SC_P / 2.0, SC_Y
+_stadium(fp_, pcbnew.F_SilkS, _scx, _scy, 16.2, 8.2)
+_stadium(fp_, pcbnew.F_Fab, _scx, _scy, 16.0, 8.0, 0.1)
+_stadium(fp_, pcbnew.F_CrtYd, _scx, _scy, 16.6, 8.6, 0.05)
+_fpline(fp_, pcbnew.F_SilkS, (SC_X + 2.6, SC_Y - 1.0), (SC_X + 2.6, SC_Y + 1.0)); _fpline(fp_, pcbnew.F_SilkS, (SC_X + 1.6, SC_Y), (SC_X + 3.6, SC_Y))
+_fpline(fp_, pcbnew.F_SilkS, (SC_X + SC_P - 3.6, SC_Y), (SC_X + SC_P - 1.6, SC_Y))
 place("C3", "Capacitor_THT", "CP_Radial_D5.0mm_P2.00mm", 60.8, 39.8, value="10u 16V NP")
 place("J3", "Connector_PinHeader_2.54mm", "PinHeader_1x04_P2.54mm_Vertical", 89.8, 50.5, value="Spare relay module 5V/IN1(D27)/IN2(D13)/GND")
 
@@ -313,7 +344,7 @@ def route_net(n, pads_list, layers_allowed):
     return ok
 
 # ESP32 antenna keep-out (module overhangs the left end of the sockets): no copper on any layer
-ANT = (45.6, 3.4, 52.0, 36.6)
+ANT = (45.6, ESP_Y - 29.0, 52.0, ESP_Y + 4.2)
 for _l in (F, B): obst[_l].append((ANT[0], ANT[1], ANT[2], ANT[3], "#antenna"))
 # ---- manual thick copper (relay power path, 10 A class) ----
 def P(ref, num):
@@ -322,14 +353,14 @@ def poly(n, pts, w, layer=F):
     for a, b in zip(pts, pts[1:]): add_track(n, layer, a, b, w)
 j1p, j4p = P("J1", 2), P("J4", 1)
 bar_y = TY - 3.0
-BUS_Y = YC - 4.0
+BUS_Y = YC - 2.5          # v5.1: lower than v5 (YC - 4) to clear the SC1 supercap leads above it
 poly("VBATT", [j1p, (j1p[0], bar_y)], 3.0)
 poly("VBATT", [j4p, (j4p[0], bar_y)], 3.0)
 poly("VBATT", [(j1p[0], bar_y), (j4p[0], bar_y)], 4.0)
 bx = (j1p[0] + j4p[0]) / 2.0
 poly("VBATT", [(bx, bar_y), (bx, BUS_Y)], 5.0)
 k1c, k2c = P("K1", 1), P("K2", 1)
-poly("VBATT", [(bx - 2.5, BUS_Y), (k2c[0], BUS_Y)], 5.0)
+poly("VBATT", [(bx - 2.0, BUS_Y), (k2c[0], BUS_Y)], 4.0)
 poly("VBATT", [(k1c[0], BUS_Y), k1c], 3.0)
 poly("VBATT", [(k2c[0], BUS_Y), k2c], 3.0)
 f1 = P("F1", 1)
@@ -377,7 +408,7 @@ order = [
     ("3V3", [("U1B", 15), ("Rv1", 2), ("R5", 2), ("U3", 8), ("C5", 1)], (F, B)),
 ]
 import os, random
-_seed = os.environ.get("ORDER_SEED")
+_seed = os.environ.get("ORDER_SEED", "16")      # v5.1 routes completely with seed 16
 if _seed:
     _pw = [o for o in order if o[0] in ("VBF", "NODE_A", "VBUCK", "NODE_B")]
     _sg = [o for o in order if o[0] not in ("VBF", "NODE_A", "VBUCK", "NODE_B")]
@@ -463,17 +494,20 @@ for ref, a, b, lab in [("J2", 2, 3, "REMOTE"), ("J6", 1, 2, "CONTACTOR")]:
     xa, xb = pinx(ref, a), pinx(ref, b)
     sline((xa - 1.2, LY - 1.6), (xb + 1.2, LY - 1.6)); sline((xa - 1.2, LY - 1.6), (xa - 1.2, LY - 2.4)); sline((xb + 1.2, LY - 1.6), (xb + 1.2, LY - 2.4))
     text(lab, (xa + xb) / 2.0, LY, 1.0)
-text("K1 ACC", 27.5, YC - 4.5, 0.9); text("K2 START", 45.5, YC - 4.5, 0.9)
+text("K1 ACC", 27.5, YC + 17.0, 0.9); text("K2 START", 45.5, YC + 17.0, 0.9)   # v5.1: below the NO pads (SC1 sits above K2)
 text("J3 SPARE", 89.5, 47.8, 0.8)
 for k, lab in enumerate(["5V", "D27", "D13", "GND"]): text(lab, 86.3, 50.5 + 2.54 * k, 0.8)
-text("Pramac autostart v5", 24, 2.0, 0.9); text("ANTENNA", 48.8, 17.0, 0.8); text("KEEP-OUT", 48.8, 19.2, 0.8)
+text("Pramac autostart v5.1", 24, 2.0, 0.9); text("ANTENNA", 48.8, 15.0, 0.8); text("KEEP-OUT", 48.8, 17.2, 0.8)
+# RM1 pin functions (v5 had no labels and the body outline on the wrong side)
+for k, lab in ((1, "IN"), (2, "GND"), (3, "OUT")): text(lab, 41.2, ToMM(pad("RM1", k).GetPosition().y), 0.8)
+text("SC1 1F 5.5V", SC_X + SC_P / 2.0, SC_Y - 2.2, 0.9)
 
 # ---- back side: QR code (light modules printed, dark = bare mask), GitHub mark, nick ----
 BS = pcbnew.B_SilkS
 rows = [l.strip() for l in open("qr.txt") if l.strip()]
 core = [r_[1:-1] for r_ in rows[1:-1]]          # drop 1-module border of CoreImage output
-NQ = len(core); BORDER = 2; TOT = NQ + 2 * BORDER; M = 0.45
-qx0, qy0 = 3.2, 53.5
+NQ = len(core); BORDER = 2; TOT = NQ + 2 * BORDER; M = 0.42
+qx0, qy0 = 3.2, 55.0        # v5.1: lower and slightly smaller, F1 moved down into the old spot
 def dark(c, r_):
     c -= BORDER; r_ -= BORDER
     return 0 <= c < NQ and 0 <= r_ < NQ and core[r_][c] == "1"

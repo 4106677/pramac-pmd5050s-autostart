@@ -33,7 +33,7 @@ P = dict(
     inlay=0.05, logo_h=40.0, logo_svg='pramac-logo-vector.svg',   # recess depth of logo/emblems (paint them), logo height
     emblem_s=19.0,                                            # hazard emblem size (one, centred on the cover); the logo goes on the lid
     # extra PCB supports (the board is held by 3 screws): plain posts at free spots (PCB coords), edge ledges with guide fins
-    support_d=5.0, supports=[(28.0, 20.5), (83.0, 26.0), (28.5, 64.5), (72.5, 67.5), (14.0, 41.0), (48.0, 37.0)],
+    support_d=5.0, supports=[(28.0, 20.5), (85.0, 24.0), (28.5, 64.5), (72.5, 67.5), (14.0, 41.0), (48.0, 37.0)],
     ledge_len=10.0, ledge_under=1.5, fin_t=1.5, fin_gap=0.4, fin_above=2.0,
     ledges_left=[22.0, 62.0], ledges_right=[24.0, 40.0], ledges_top=[15.0, 80.0],   # ledge centres along each PCB edge
     vent_n=6, vent_w=2.0, vent_l=24.0, vent_pitch=10.0, vent_z=30.0,

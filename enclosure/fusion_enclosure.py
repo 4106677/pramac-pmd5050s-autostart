@@ -47,8 +47,9 @@ PARAMS = [
     ('screw_clear_d', '3.4', 'M3 clearance hole'),
     ('csk_d', '6.8', 'screw head recess diameter in the lid'),
     ('csk_h', '1.7', 'screw head recess depth'),
-    ('slot_z0', '4', 'wire slot: height above the floor'),
-    ('slot_h', '22', 'wire slot height'),
+    ('wire_slot_h', '8', 'wire entry slot height (round-ended slots in the bottom wall)'),
+    ('wire_chamfer', '1', 'outer chamfer of the wire slots'),
+    ('clamp_h', '3.6', 'terminal clamp centre above the PCB top'),
     ('cover_w', '100', 'cover inlay width'),
     ('cover_top_y', '60', 'cover top edge on the PCB (y from the PCB top)'),
     ('cover_bottom', '12', 'cover bottom edge above the lid edge'),
@@ -88,6 +89,7 @@ PARAMS = [
     ('rebate', 'skirt_t + skirt_gap', 'derived'),
     ('pcb_x0', 'wall + margin_side', 'model x of the PCB left edge'),
     ('pcb_ytop', 'outer_h - wall - margin_top', 'model y of the PCB top edge'),
+    ('wire_slot_z', 'floor_t + standoff + pcb_t + clamp_h', 'wire slot centre height = terminal clamp height'),
     ('cover_y0', 'cover_bottom', 'derived'),
     ('cover_y1', 'pcb_ytop - cover_top_y', 'derived'),
     ('cover_x0', 'outer_w / 2 - cover_w / 2', 'derived'),
@@ -95,8 +97,10 @@ PARAMS = [
 ]
 
 PCB_HOLES = [(4.0, 37.0), (47.5, 76.5), (72.5, 75.0)]               # PCB mounting holes (x from left, y from top)
-SLOTS = [(3.6, 13.0), (16.2, 25.6), (28.2, 37.5), (57.8, 67.2), (77.3, 91.7)]   # wire slots, PCB x ranges
-SUPPORTS = [(28.0, 20.5), (83.0, 26.0), (28.5, 64.5), (72.5, 67.5), (14.0, 41.0), (48.0, 37.0)]   # plain posts (PCB x, y)
+# wire entry slots in the bottom wall: x of the first and last terminal pad (PCB x) of each group, at the height
+# of the terminal clamps, so every wire runs straight to its terminal: J1+J4+J5 (12 V), J6 (230 V), J2 (signals)
+WIRE_SLOTS = [(6.0, 35.0), (60.0, 65.0), (79.5, 89.5)]
+SUPPORTS = [(28.0, 20.5), (85.0, 24.0), (28.5, 64.5), (72.5, 67.5), (14.0, 41.0), (48.0, 37.0)]   # plain posts (PCB x, y)
 LEDGES_LEFT, LEDGES_RIGHT, LEDGES_TOP = [22.0, 62.0], [24.0, 40.0], [15.0, 80.0]   # ledge centres along each PCB edge
 VENT_N = 6
 LOGO_SVG = 'pramac-logo-vector.svg'   # next to this script
@@ -319,6 +323,31 @@ def chamfer_edges(root, edges, dist_expr, name):
     return f
 
 
+def wire_slot(sk, a, b):
+    """Round-ended slot on the XZ plane (outer face of the bottom wall) from pad x a to pad x b (PCB x),
+    centred at the terminal clamp height, fully dimensioned with the parameters."""
+    x0, z, r = VAL['pcb_x0'], VAL['wire_slot_z'], VAL['wire_slot_h'] / 2
+    S = lambda x, zz: sk.modelToSketchSpace(P3(x, 0, zz))
+    xa, xb = x0 + a, x0 + b
+    arcs, lines, gc, dims = sk.sketchCurves.sketchArcs, sk.sketchCurves.sketchLines, sk.geometricConstraints, sk.sketchDimensions
+    A = arcs.addByThreePoints(S(xa, z + r), S(xa - r, z), S(xa, z - r))
+    B = arcs.addByThreePoints(S(xb, z - r), S(xb + r, z), S(xb, z + r))
+    near = lambda p, q: p.geometry.distanceTo(q) < 1e-6
+    at, ab = (A.startSketchPoint, A.endSketchPoint) if near(A.startSketchPoint, S(xa, z + r)) else (A.endSketchPoint, A.startSketchPoint)
+    bt, bb = (B.startSketchPoint, B.endSketchPoint) if near(B.startSketchPoint, S(xb, z + r)) else (B.endSketchPoint, B.startSketchPoint)
+    top, bot = lines.addByTwoPoints(at, bt), lines.addByTwoPoints(ab, bb)
+    for ln in (top, bot):
+        gc.addTangent(ln, A); gc.addTangent(ln, B)
+    gc.addHorizontal(top)
+    gc.addEqual(A, B)
+    dims.addRadialDimension(A, S(xa - r, z + r)).parameter.expression = 'wire_slot_h / 2'
+    H = adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation
+    Vt = adsk.fusion.DimensionOrientations.VerticalDimensionOrientation
+    dims.addDistanceDimension(sk.originPoint, A.centerSketchPoint, H, S(xa, z + 3 * r)).parameter.expression = 'pcb_x0 + %s mm' % a
+    dims.addDistanceDimension(sk.originPoint, A.centerSketchPoint, Vt, S(xa - 3 * r, z / 2)).parameter.expression = 'wire_slot_z'
+    dims.addDistanceDimension(A.centerSketchPoint, B.centerSketchPoint, H, S((xa + xb) / 2, z + 2 * r)).parameter.expression = '%s mm' % (b - a)
+
+
 def run(context):
     step = 'init'
     try:
@@ -433,11 +462,26 @@ def run(context):
         extrude(root, profiles(sk), CUT, 'floor_t + standoff - 5 - relief_floor', 'PCB screw relief', base, negative=True)
 
         step = 'base: wire slots'
-        pl_slot = offset_plane(root, 'floor_t + slot_z0')
-        sk = root.sketches.add(pl_slot); sk.name = 'Wire slots'
-        for a, b in SLOTS:
-            rect(sk, 'pcb_x0 + %s' % a, '0', 'pcb_x0 + %s' % b, 'wall')
-        extrude(root, profiles(sk), CUT, 'slot_h', 'Wire slots', base)
+        sk = root.sketches.add(root.xZConstructionPlane); sk.name = 'Wire slots'
+        for a, b in WIRE_SLOTS:
+            wire_slot(sk, a, b)
+        ext = root.features.extrudeFeatures
+        inp = ext.createInput(profiles(sk), CUT)
+        inp.setSymmetricExtent(adsk.core.ValueInput.createByString('wall'), False)
+        inp.participantBodies = [base]
+        cut = ext.add(inp); cut.name = 'Wire slots'
+
+        def slot_chamfers():
+            outer, inner = adsk.core.ObjectCollection.create(), adsk.core.ObjectCollection.create()
+            for f in cut.sideFaces:
+                for e in f.edges:
+                    bb = e.boundingBox
+                    for col, y in ((outer, 0.0), (inner, V['wall'] * CM)):
+                        if abs(bb.minPoint.y - y) < 1e-6 and abs(bb.maxPoint.y - y) < 1e-6 and not col.contains(e):
+                            col.add(e)
+            chamfer_edges(root, outer, 'wire_chamfer', 'Wire slots outer chamfer')
+            chamfer_edges(root, inner, '0.5 mm', 'Wire slots inner chamfer')
+        optional('wire slot chamfers', slot_chamfers)
 
         step = 'base: vent slots'
         pl_vent = offset_plane(root, 'vent_z - vent_l / 2')
