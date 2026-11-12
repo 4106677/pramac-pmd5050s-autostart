@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "pramac_v6")(type "KiCad")(uri "${KIPRJMOD}/pramac_v6.kicad_sym")(options "")(descr "Board v6 symbols"))
+)

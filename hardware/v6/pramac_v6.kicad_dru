@@ -1,0 +1,4 @@
+(version 1)
+(rule "mains_to_lv"
+  (condition "(A.NetName == 'AC_L' || A.NetName == 'AC_LF' || A.NetName == 'AC_N' || A.NetName == 'AC_D1' || A.NetName == 'AC_D2' || A.NetName == 'AC_D3' || A.NetName == 'CT_COM' || A.NetName == 'CT_NO') && !(B.NetName == 'AC_L' || B.NetName == 'AC_LF' || B.NetName == 'AC_N' || B.NetName == 'AC_D1' || B.NetName == 'AC_D2' || B.NetName == 'AC_D3' || B.NetName == 'CT_COM' || B.NetName == 'CT_NO')")
+  (constraint clearance (min 2.5mm)))
