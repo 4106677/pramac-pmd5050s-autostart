@@ -18,7 +18,7 @@ for val, lcsc in [("22k", "C25830"), ("47k", "C25833")]:
     P["R1206_" + val] = (val, R1206, lcsc, "Device:R")
 
 # capacitors
-for key, val, fp, lcsc in [("100n", "100n 50V X7R", C0805, "C49678"), ("220n", "220n 50V X7R", C0805, "C5378"),
+for key, val, fp, lcsc in [("10n", "10n 50V X7R", C0805, "C1710"), ("100n", "100n 50V X7R", C0805, "C49678"), ("220n", "220n 50V X7R", C0805, "C5378"),
                            ("1u", "1u 25V X7R", C0805, "C89190"), ("10u", "10u 25V X5R", C0805, "C15850"),
                            ("22u", "22u 10V X5R", C0805, "C380338"), ("10u_50V", "10u 50V X5R", C1206, "C13585"),
                            ("10u_25V_NP", "10u 25V X7R", C1206, "C70462")]:
@@ -42,6 +42,7 @@ P.update({
     "RELAY":       ("SRD-05VDC-SL-C", "Relay_THT:Relay_SPDT_SANYOU_SRD_Series_Form_C", "C35449", "Relay:SANYOU_SRD_Form_C"),
     "NMOS":        ("AO3400A", "Package_TO_SOT_SMD:SOT-23", "C20917", "Transistor_FET:AO3400A"),
     "DIODE_SIG":   ("1N4148W", "Diode_SMD:D_SOD-123", "C81598", "Device:D"),
+    "DUAL_DIODE":  ("BAV99", "Package_TO_SOT_SMD:SOT-23", "C2500", "Diode:BAV99"),
     "ZENER_5V1":   ("BZT52C5V1", "Diode_SMD:D_SOD-123", "C2117", "Device:D_Zener"),
     "COMPARATOR":  ("LM393DR2G", "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm", "C7955", "Comparator:LM393"),
     "LED_RED":     ("LED red", "LED_SMD:LED_0805_2012Metric", "C84256", "Device:LED"),

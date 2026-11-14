@@ -12,7 +12,7 @@ import kisch
 from parts import P
 
 kisch.SCALE = 0.7
-S = kisch.Sheet("pramac_v6", paper="A2", title="Pramac PMD5050S autostart v6", rev="6.0")
+S = kisch.Sheet("pramac_v6", paper="A2", title="Pramac PMD5050S autostart v6", rev="6.1")
 
 
 def part(key, ref, x, y, nets, rot=0, value=None, **kw):
@@ -129,17 +129,21 @@ R("R30", "22k", 490, 300, "TAHO_IN", "TAHO_CL", rot=90, size="R1206")
 part("ZENER_5V1", "D20", 510, 320, {"1": "TAHO_CL", "2": "ZMID"})
 part("ZENER_5V1", "D21", 510, 345, {"1": "GND", "2": "ZMID"})
 C("C30", "10u_25V_NP", 530, 300, "TAHO_CL", "TAHO_AC", rot=90)
-R("R31", "10k", 550, 320, "TAHO_AC", "VB")
-R("R32", "10k", 570, 290, "3V3", "VB")
-R("R33", "10k", 570, 345, "VB", "GND")
-part("COMPARATOR", "U5", 610, 315, {"1": "TAHO", "2": "TAHO_AC", "3": "VB"}, unit=1)
+R("R31", "10k", 545, 335, "TAHO_AC", "GND")
+R("R38", "10k", 560, 300, "TAHO_AC", "TAHO_F", rot=90)
+C("C33", "10n", 580, 340, "TAHO_F", "GND")
+part("DUAL_DIODE", "D25", 590, 280, {"1": "GND", "2": "3V3", "3": "TAHO_F"})
+R("R32", "22k", 595, 300, "3V3", "VB")
+R("R33", "10k", 595, 345, "VB", "GND")
+part("COMPARATOR", "U5", 625, 315, {"1": "TAHO", "2": "TAHO_F", "3": "VB"}, unit=1)
 part("COMPARATOR", "U5", 610, 360, {"6": "3V3", "5": "GND"}, unit=2, nc=["7"])
 part("COMPARATOR", "U5", 650, 360, {"8": "3V3", "4": "GND"}, unit=3)
-R("R34", "100k", 640, 295, "TAHO", "VB", rot=90)
-R("R35", "4k7", 660, 315, "3V3", "TAHO")
-C("C31", "100n", 675, 360, "3V3", "GND")
-S.note("TAHO: 22k -> два стабілітрони 5,1 В -> 10 мкФ -> LM393, зсув 1,65 В, гістерезис 100k.\n"
-       "Живий дріт TAHO не можна садити на масу.", 470, 380)
+R("R34", "100k", 655, 295, "TAHO", "VB", rot=90)
+R("R35", "4k7", 675, 315, "3V3", "TAHO")
+C("C31", "100n", 690, 360, "3V3", "GND")
+S.note("TAHO: 22k -> два стабілітрони 5,1 В -> 10 мкФ -> 10k на GND -> фільтр 10k/10 нФ (100 мкс) -> LM393.\n"
+       "BAV99 обмежує вхід LM393 від -0,6 до 3,9 В. Поріг VB = 22k/10k + гістерезис 100k: 0,97 / 1,18 В.\n"
+       "Вхід у спокої на 0 В, нижче порогу: вихід HIGH. Живий дріт TAHO не можна садити на масу.", 470, 380)
 R("R36", "1k", 720, 300, "REMOTE_IN", "REMOTE", rot=90)
 C("C32", "100n", 740, 320, "REMOTE", "GND")
 R("R37", "10k", 755, 300, "3V3", "REMOTE")
