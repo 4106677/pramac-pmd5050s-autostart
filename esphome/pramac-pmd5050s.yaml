@@ -8,6 +8,8 @@ substitutions:
   # Поріг "двигун працює", об/хв. Стартер крутить ~200-400 об/хв, двигун
   # на роботі ~3000 об/хв, тому 1000 надійно відділяє одне від одного.
   running_rpm_threshold: "1000"
+  # Відпускаємо стартер, щойно оберти за останні 0,2 с перевищили цей поріг (стартер дає 200-400).
+  starter_release_rpm: "1500"
   # Контактор: прогрів двигуна перед підключенням навантаження і пауза перед зупинкою.
   warmup_s: "40"
   # Після розмикання контактора двигун ще працює без навантаження (охолодження), потім знімаємо ACC.
@@ -16,6 +18,12 @@ substitutions:
 esphome:
   name: pramac-pmd5050s
   friendly_name: Pramac PMD5050s
+  includes:
+    - taho_rpm.h
+  on_boot:
+    priority: 200
+    then:
+      - lambda: 'taho_rpm::setup();'
 
 esp32:
   board: esp32dev
@@ -28,7 +36,6 @@ logger:
     # Прибираємо DEBUG-спам "Retrieved counter / Sending state" кожну секунду,
     # коли двигун стоїть. Оберти логуються нижче, тільки коли вони не 0.
     sensor: INFO
-    pulse_counter: INFO
 
 # Enable Home Assistant API
 api:
@@ -167,25 +174,23 @@ binary_sensor:
     name: "Не вдалось завести"
 
 # ---------------------------------------------------------------------------
-# TAHO: сирі імпульси з LM393 (D14) і перерахунок в оберти
+# TAHO: оберти з LM393 (D14). Рахує taho_rpm.h (лежить поруч):
+# медіана інтервалів між чистими половинами періоду, стійка до перешкод регулятора зарядки.
 # ---------------------------------------------------------------------------
 sensor:
-  - platform: pulse_counter
-    pin: GPIO14
-    id: taho_pulses
-    name: "TAHO імпульсів/хв"
-    update_interval: 1s
-    accuracy_decimals: 0
-
-  - platform: copy
-    source_id: taho_pulses
+  - platform: template
     id: engine_rpm
     name: "Оберти двигуна"
     unit_of_measurement: "RPM"
     accuracy_decimals: 0
     icon: "mdi:engine"
-    filters:
-      - lambda: return x / ${pulses_per_rev};
+    state_class: measurement
+    update_interval: 1s
+    lambda: |-
+      float by_count = 0;
+      float rpm = taho_rpm::update(&by_count);
+      id(taho_pulses).publish_state(by_count * ${pulses_per_rev});
+      return rpm;
     on_value:
       then:
         - if:
@@ -193,8 +198,17 @@ sensor:
               lambda: 'return x > 0;'
             then:
               - logger.log:
-                  format: "Оберти: %.0f RPM (імпульсів/хв: %.0f)"
+                  format: "Оберти: %.0f RPM (простий лічильник: %.0f імп/хв)"
                   args: ['x', 'id(taho_pulses).state']
+
+  # Простий лічильник фронтів (фільтр 1,8 мс), для порівняння. На ходу з перешкодами завищує.
+  - platform: template
+    id: taho_pulses
+    name: "TAHO імпульсів/хв"
+    unit_of_measurement: "pulses/min"
+    accuracy_decimals: 0
+    state_class: measurement
+    update_interval: never
 
   # Моточаси: рахуємо час, поки "Двигун працює" = true. Старт з нуля при першій прошивці,
   # далі значення зберігається у флеші (restore) і переживає перезавантаження та OTA.
@@ -253,11 +267,21 @@ script:
                 value: !lambda 'return id(crank_attempts) + 1;'
             - logger.log: "Спроба прокрутки стартера"
             - switch.turn_on: relay_start
+            # Стартер відпускаємо за швидкими обертами (вікно 0,2 с), а не за секундним виміром.
+            - wait_until:
+                condition:
+                  lambda: 'return taho_rpm::fast_rpm() >= ${starter_release_rpm};'
+                timeout: 8s
+            - switch.turn_off: relay_start
+            - logger.log:
+                format: "Стартер відпущено, швидкі оберти %.0f"
+                args: ['taho_rpm::fast_rpm()']
+            # "Двигун працює" оновлюється раз на секунду — даємо до 3 с підтвердити запуск,
+            # інакше цикл вирішив би, що не завелось, і крутив стартер знову.
             - wait_until:
                 condition:
                   binary_sensor.is_on: engine_running
-                timeout: 8s
-            - switch.turn_off: relay_start
+                timeout: 3s
             - if:
                 condition:
                   not:
