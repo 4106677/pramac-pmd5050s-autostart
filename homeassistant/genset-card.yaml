@@ -1,36 +1,60 @@
-# Картка Home Assistant для другого генератора: плата v5.1, пристрій ESPHome "genset" (friendly_name: Genset).
-# Ставиться поруч із карткою generator-card.yaml першого генератора (pramac-pmd5050s).
-# entity_id HA будує з назви пристрою та назв сутностей; якщо якийсь показує "Сутність недоступна",
-# звірте його в Налаштування → Пристрої → Genset.
+# Секція дашборда Home Assistant (вигляд "sections") для генератора 2: плата v5.1, пристрій ESPHome "genset".
+# Назви сутностей у прошивці російською, entity_id HA побудував з них (префікс ulitsa_ — зона "Улица").
+# Якщо якась плитка показує "Сутність недоступна", звірте entity_id у Налаштування → Пристрої → Genset.
+# "Состояние" — текстовий датчик прошивки: стартер / прогрів / працює з навантаженням / охолодження / помилка.
 type: grid
 cards:
   - type: heading
-    heading: Генератор 2 · Genset
+    heading: Генератор · Genset
+    heading_style: title
     icon: mdi:engine
+    badges:
+      - { type: entity, entity: binary_sensor.ulitsa_genset_dvigatel_rabotaet, show_state: true, show_icon: true, color: green }
+      - { type: entity, entity: binary_sensor.ulitsa_genset_vneshnii_signal_zapuska, show_state: false, show_icon: true, color: blue }
+  - type: tile
+    entity: sensor.ulitsa_genset_sostoianie
+    name: Состояние
+    icon: mdi:information-outline
+    color: primary
+    grid_options: { columns: 12 }
+  # видно лише коли двигун не завівся за 3 спроби
+  - type: tile
+    entity: binary_sensor.ulitsa_genset_oshibka_zapuska
+    name: Не удалось завести за 3 попытки
+    icon: mdi:alert-circle
+    color: red
+    grid_options: { columns: 12 }
+    visibility:
+      - { condition: state, entity: binary_sensor.ulitsa_genset_oshibka_zapuska, state: "on" }
   - type: gauge
-    entity: sensor.genset_oberti_dviguna
-    name: Обороты двигателя
+    entity: sensor.ulitsa_genset_oboroty_dvigatelia
+    name: Обороты
     unit: RPM
     min: 0
     max: 4000
     needle: true
+    grid_options: { columns: 12 }
     segments:
       - { from: 0,    color: "#9e9e9e" }   # стоїть / стартер
       - { from: 1000, color: "#ffa000" }   # розгін, просідання
       - { from: 2800, color: "#43a047" }   # робочі ~3000 (50 Гц)
       - { from: 3200, color: "#e53935" }   # перевищення
-  - type: entities
-    show_header_toggle: false
-    entities:
-      - entity: switch.genset_zapusk_z_ha
-        name: Запуск из HA
-        tap_action:
-          action: toggle
-          confirmation:
-            text: Запустить / заглушить генератор 2?
-      - { entity: binary_sensor.genset_dvigun_pratsiuie,      name: Двигатель работает }
-      - { entity: binary_sensor.genset_kontakt_start_stop,    name: Контакт старт/стоп }
-      - { entity: binary_sensor.genset_kontaktor_zamknenii,   name: Контактор замкнут }
-      - { entity: binary_sensor.genset_ne_vdalos_zavesti,     name: Ошибка запуска }
-      - { entity: sensor.genset_oberti_dviguna,               name: Обороты двигателя }
-      - { entity: sensor.genset_motochasy,                    name: Моточасы }
+  # сигнал зовнішнього пристрою (сухий контакт старт/стоп): увімкнено = пристрій просить генератор
+  - { type: tile, entity: binary_sensor.ulitsa_genset_vneshnii_signal_zapuska, name: Внешний сигнал, icon: mdi:electric-switch, color: blue, grid_options: { columns: 6 } }
+  - { type: tile, entity: binary_sensor.ulitsa_genset_dvigatel_rabotaet, name: Двигатель, icon: mdi:engine, color: green, grid_options: { columns: 6 } }
+  - { type: tile, entity: binary_sensor.ulitsa_genset_kontaktor_zamknut, name: Нагрузка, icon: mdi:transmission-tower-export, color: amber, grid_options: { columns: 6 } }
+  - { type: tile, entity: sensor.ulitsa_genset_motochasy, name: Моточасы, icon: mdi:timer-outline, color: grey, grid_options: { columns: 6 } }
+  - type: tile
+    entity: switch.ulitsa_genset_zapusk_iz_ha
+    name: Запуск из Home Assistant
+    icon: mdi:power
+    color: green
+    grid_options: { columns: 12 }
+    tap_action: &confirm_toggle
+      action: toggle
+      confirmation: { text: "Запустить или заглушить генератор?" }
+    icon_tap_action: *confirm_toggle
+  - { type: heading, heading: Реле и датчик оборотов, heading_style: subtitle }
+  - { type: tile, entity: switch.ulitsa_genset_rele_acc, name: Реле ACC, icon: mdi:key-variant, grid_options: { columns: 6 }, tap_action: { action: more-info }, icon_tap_action: { action: more-info } }
+  - { type: tile, entity: switch.ulitsa_genset_rele_start, name: Реле START, icon: mdi:car-key, grid_options: { columns: 6 }, tap_action: { action: more-info }, icon_tap_action: { action: more-info } }
+  - { type: tile, entity: sensor.ulitsa_genset_taho_impulsov_min, name: "TAHO, импульсов/мин", icon: mdi:sine-wave, grid_options: { columns: 12 } }

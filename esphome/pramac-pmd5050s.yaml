@@ -23,7 +23,9 @@ esphome:
   on_boot:
     priority: 200
     then:
-      - lambda: 'taho_rpm::setup();'
+      - lambda: |-
+          taho_rpm::setup();
+          id(start_failed).publish_state(false);
 
 esp32:
   board: esp32dev
@@ -57,6 +59,9 @@ wifi:
 
 captive_portal:
 
+# Назви сутностей для HA — російською (як дашборд). ESPHome будує ключ сутності з назви, а кирилиця
+# стає "_", тому дві назви з однаковою кількістю літер у словах дають однаковий ключ і HA їх плутає
+# (так було з "Контакт старт/стоп" і "Не вдалось завести"). Нова назва — перевірити, що не збігається.
 # ---------------------------------------------------------------------------
 # Змінні стану
 # ---------------------------------------------------------------------------
@@ -99,7 +104,7 @@ switch:
   # ALWAYS_OFF: після перезавантаження плати запит з HA скидається (двигун сам не стартує).
   - platform: template
     id: ha_run_request
-    name: "Запуск з HA"
+    name: "Запуск из HA"
     icon: "mdi:engine"
     optimistic: true
     restore_mode: ALWAYS_OFF
@@ -120,7 +125,8 @@ binary_sensor:
   # Зовнішні сухі контакти "старт/стоп"
   - platform: gpio
     id: start_stop_contact
-    name: "Контакт старт/стоп"
+    name: "Внешний сигнал запуска"
+    icon: "mdi:electric-switch"
     pin:
       number: GPIO25
       mode: INPUT_PULLUP
@@ -143,7 +149,8 @@ binary_sensor:
   # "Двигун працює" — оберти вищі за поріг (running_rpm_threshold).
   - platform: template
     id: engine_running
-    name: "Двигун працює"
+    name: "Двигатель работает"
+    device_class: running
     lambda: |-
       return id(engine_rpm).state > ${running_rpm_threshold};
     filters:
@@ -164,14 +171,16 @@ binary_sensor:
   # Контактор замкнений (стан реле K3)
   - platform: template
     id: contactor_closed
-    name: "Контактор замкнений"
+    name: "Контактор замкнут"
+    icon: "mdi:transmission-tower-export"
     lambda: |-
       return id(relay_contactor).state;
 
   # Прапорець невдалого запуску — видно в Home Assistant
   - platform: template
     id: start_failed
-    name: "Не вдалось завести"
+    name: "Ошибка запуска"
+    device_class: problem
 
 # ---------------------------------------------------------------------------
 # TAHO: оберти з LM393 (D14). Рахує taho_rpm.h (лежить поруч):
@@ -180,7 +189,7 @@ binary_sensor:
 sensor:
   - platform: template
     id: engine_rpm
-    name: "Оберти двигуна"
+    name: "Обороты двигателя"
     unit_of_measurement: "RPM"
     accuracy_decimals: 0
     icon: "mdi:engine"
@@ -204,8 +213,8 @@ sensor:
   # Простий лічильник фронтів (фільтр 1,8 мс), для порівняння. На ходу з перешкодами завищує.
   - platform: template
     id: taho_pulses
-    name: "TAHO імпульсів/хв"
-    unit_of_measurement: "pulses/min"
+    name: "TAHO импульсов/мин"
+    unit_of_measurement: "имп/мин"
     accuracy_decimals: 0
     state_class: measurement
     update_interval: never
@@ -226,6 +235,33 @@ sensor:
     icon: "mdi:timer-outline"
     filters:
       - multiply: 0.00027777778   # секунди -> години
+
+# ---------------------------------------------------------------------------
+# Стан для Home Assistant: що зараз робить автозапуск (текст російською, як дашборд HA)
+# ---------------------------------------------------------------------------
+text_sensor:
+  - platform: template
+    id: genset_status
+    name: "Состояние"
+    icon: "mdi:state-machine"
+    update_interval: 1s
+    lambda: |-
+      bool req = id(start_stop_contact).state || id(ha_run_request).state;
+      bool run = id(engine_running).state;
+      if (id(relay_start).state) {
+        char b[48];
+        snprintf(b, sizeof(b), "Стартер, попытка %d из 3", id(crank_attempts));
+        return std::string(b);
+      }
+      if (id(start_sequence).is_running()) {
+        if (run && !id(relay_contactor).state) return std::string("Прогрев перед нагрузкой");
+        if (!run) return std::string("Запуск");
+      }
+      if (run && id(relay_contactor).state) return std::string("Работает, нагрузка подключена");
+      if (id(stop_sequence).is_running() && id(relay_acc).state) return std::string("Охлаждение перед остановкой");
+      if (id(start_failed).state) return std::string("Не удалось завести");
+      if (run) return std::string(req ? "Работает" : "Работает без запроса");
+      return std::string(req ? "Запрос на запуск" : "Остановлен, ожидание");
 
 # ---------------------------------------------------------------------------
 # Логіка запуску: ACC → пауза → до 3 спроб прокрутки з очікуванням оборотів
