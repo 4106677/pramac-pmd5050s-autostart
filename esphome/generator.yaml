@@ -1,0 +1,377 @@
+# Прошивка "під ключ" для плати v5.1, яка йде разом з генератором до нового власника.
+#
+# - Своя Wi-Fi точка "Generator-Pramac" (пароль gen_ap_password у secrets.yaml). Підключившись до неї, власник
+#   у вікні входу (або http://192.168.4.1) вибирає домашню мережу і вводить її пароль. Мережа зберігається
+#   у флеші плати й переживає перезавантаження та оновлення прошивки.
+# - Після підключення до дому точка вимикається, а сторінка генератора — http://generator.local
+#   (або IP з роутера). Якщо домашня мережа пропала більше ніж на 1 хв, точка вмикається знову.
+# - Сторінка російською: стан, оберти, моточаси, запуск/зупинка, час прогріву й охолодження.
+# - Основне керування — вхід REMOTE (сухий контакт): замкнений = генератор потрібен.
+# - Перезавантаження через втрату Wi-Fi вимкнене (reboot_timeout: 0s): інакше плата глушила б генератор.
+#
+# Збірка: у secrets.yaml мають бути gen_ap_password (8+ символів) і gen_ota_password.
+# Мережу власника в прошивку НЕ вписувати: тоді ESPHome скидав би збережену мережу при кожному оновленні.
+
+substitutions:
+  pulses_per_rev: "6"            # імпульсів TAHO на оберт (див. pramac-pmd5050s.yaml)
+  running_rpm_threshold: "1000"  # вище — двигун працює (стартер дає 200-400)
+  starter_release_rpm: "1500"    # стартер відпускаємо за обертами за останні 0,2 с
+
+esphome:
+  name: generator
+  friendly_name: Генератор Pramac
+  project:
+    name: "pramac.pmd5050s-autostart"
+    version: "5.1"
+  includes:
+    - taho_rpm.h
+  on_boot:
+    priority: 200
+    then:
+      - lambda: |-
+          taho_rpm::setup();
+          id(start_failed).publish_state(false);
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+  logs:
+    sensor: INFO
+
+# Для Home Assistant, якщо він є в нового власника (додається вручну, без ключа).
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+    password: !secret gen_ota_password
+
+wifi:
+  # Мереж тут немає навмисно: її задає власник через точку доступу.
+  ap:
+    ssid: "Generator-Pramac"
+    password: !secret gen_ap_password
+    ap_timeout: 1min
+  reboot_timeout: 0s
+  power_save_mode: none
+
+captive_portal:
+
+web_server:
+  port: 80
+  version: 3
+  local: true      # скрипти сторінки зашиті в плату: працює і без інтернету
+  ota: false       # прошивку через сторінку не заливати
+  log: false
+  sorting_groups:
+    - { id: grp_control, name: "Управление", sorting_weight: 10 }
+    - { id: grp_state,   name: "Состояние",  sorting_weight: 20 }
+    - { id: grp_setup,   name: "Настройки",  sorting_weight: 30 }
+    - { id: grp_net,     name: "Сеть и плата", sorting_weight: 40 }
+
+# Назви російською. ESPHome будує ключ і адресу сутності з назви, кирилиця стає "_", тому дві назви
+# з однаковою кількістю літер у словах в одному домені плутаються. Нова назва — перевірити.
+
+globals:
+  - id: crank_attempts
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+# ---------------------------------------------------------------------------
+# Реле (NPN-драйвер, активний HIGH): D2 = ACC, D4 = START, D26 = контактор. На сторінці їх немає.
+# ---------------------------------------------------------------------------
+switch:
+  - platform: gpio
+    id: relay_acc
+    internal: true
+    pin: { number: GPIO2, inverted: false }
+    restore_mode: ALWAYS_OFF
+
+  - platform: gpio
+    id: relay_start
+    internal: true
+    pin: { number: GPIO4, inverted: false }
+    restore_mode: ALWAYS_OFF
+
+  - platform: gpio
+    id: relay_contactor
+    internal: true
+    pin: { number: GPIO26, inverted: false }
+    restore_mode: ALWAYS_OFF
+
+  # Запуск зі сторінки. Як віртуальний "замкнений REMOTE"; після перезавантаження скидається.
+  - platform: template
+    id: manual_run
+    name: "Запуск вручную"
+    icon: "mdi:engine"
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    web_server: { sorting_group_id: grp_control, sorting_weight: 1 }
+    turn_on_action:
+      - logger.log: "Запуск зі сторінки"
+      - script.stop: stop_sequence
+      - script.execute: start_sequence
+    turn_off_action:
+      - logger.log: "Зупинка зі сторінки"
+      # REMOTE має пріоритет: поки він замкнений, генератор працює.
+      - if:
+          condition:
+            binary_sensor.is_off: remote_signal
+          then:
+            - script.execute: stop_sequence
+
+binary_sensor:
+  # Вхід REMOTE (сухий контакт на клемі J2): замкнений = генератор потрібен.
+  - platform: gpio
+    id: remote_signal
+    name: "Внешний сигнал запуска"
+    icon: "mdi:electric-switch"
+    web_server: { sorting_group_id: grp_state, sorting_weight: 2 }
+    pin:
+      number: GPIO25
+      mode: INPUT_PULLUP
+      inverted: true
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+    on_press:
+      then:
+        - script.stop: stop_sequence
+        - script.execute: start_sequence
+    on_release:
+      then:
+        - if:
+            condition:
+              switch.is_off: manual_run
+            then:
+              - script.execute: stop_sequence
+
+  - platform: template
+    id: engine_running
+    name: "Двигатель работает"
+    device_class: running
+    web_server: { sorting_group_id: grp_state, sorting_weight: 3 }
+    lambda: |-
+      return id(engine_rpm).state > ${running_rpm_threshold};
+    filters:
+      - delayed_off: 3s
+    on_release:
+      then:
+        - switch.turn_off: relay_contactor
+        - if:
+            condition:
+              or:
+                - binary_sensor.is_on: remote_signal
+                - switch.is_on: manual_run
+            then:
+              - logger.log: "Несподівана зупинка двигуна — пробуємо перезапуск"
+              - script.execute: start_sequence
+
+  - platform: template
+    id: contactor_closed
+    name: "Нагрузка подключена"
+    icon: "mdi:transmission-tower-export"
+    web_server: { sorting_group_id: grp_state, sorting_weight: 4 }
+    lambda: |-
+      return id(relay_contactor).state;
+
+  - platform: template
+    id: start_failed
+    name: "Ошибка запуска"
+    device_class: problem
+    web_server: { sorting_group_id: grp_state, sorting_weight: 5 }
+
+# ---------------------------------------------------------------------------
+# Налаштування зі сторінки (зберігаються у флеші)
+# ---------------------------------------------------------------------------
+number:
+  - platform: template
+    id: warmup_s
+    name: "Прогрев перед нагрузкой, с"
+    icon: "mdi:thermometer-chevron-up"
+    min_value: 10
+    max_value: 300
+    step: 5
+    initial_value: 40
+    optimistic: true
+    restore_value: true
+    mode: box
+    web_server: { sorting_group_id: grp_setup, sorting_weight: 1 }
+
+  - platform: template
+    id: cooldown_s
+    name: "Охлаждение перед остановкой, с"
+    icon: "mdi:thermometer-chevron-down"
+    min_value: 0
+    max_value: 300
+    step: 5
+    initial_value: 20
+    optimistic: true
+    restore_value: true
+    mode: box
+    web_server: { sorting_group_id: grp_setup, sorting_weight: 2 }
+
+# ---------------------------------------------------------------------------
+# Оберти (taho_rpm.h, вхід TAHO через LM393 на D14), моточаси, Wi-Fi
+# ---------------------------------------------------------------------------
+sensor:
+  - platform: template
+    id: engine_rpm
+    name: "Обороты двигателя"
+    unit_of_measurement: "RPM"
+    accuracy_decimals: 0
+    icon: "mdi:engine"
+    state_class: measurement
+    update_interval: 1s
+    web_server: { sorting_group_id: grp_state, sorting_weight: 6 }
+    lambda: |-
+      float by_count = 0;
+      return taho_rpm::update(&by_count);
+
+  - platform: duty_time
+    id: engine_hours
+    name: "Моточасы"
+    sensor: engine_running
+    restore: true
+    update_interval: 5min
+    unit_of_measurement: "ч"
+    state_class: total_increasing
+    accuracy_decimals: 1
+    icon: "mdi:timer-outline"
+    web_server: { sorting_group_id: grp_state, sorting_weight: 7 }
+    filters:
+      - multiply: 0.00027777778   # секунди -> години
+
+  - platform: wifi_signal
+    name: "Уровень Wi-Fi"
+    update_interval: 60s
+    web_server: { sorting_group_id: grp_net, sorting_weight: 3 }
+
+  - platform: uptime
+    name: "Плата работает"
+    update_interval: 60s
+    unit_of_measurement: "мин"
+    accuracy_decimals: 0
+    web_server: { sorting_group_id: grp_net, sorting_weight: 4 }
+    filters:
+      - multiply: 0.0166666667
+
+text_sensor:
+  - platform: template
+    id: genset_status
+    name: "Состояние"
+    icon: "mdi:state-machine"
+    update_interval: 1s
+    web_server: { sorting_group_id: grp_state, sorting_weight: 1 }
+    lambda: |-
+      bool remote = id(remote_signal).state;
+      bool req = remote || id(manual_run).state;
+      bool run = id(engine_running).state;
+      if (id(relay_start).state) {
+        char b[48];
+        snprintf(b, sizeof(b), "Стартер, попытка %d из 3", id(crank_attempts));
+        return std::string(b);
+      }
+      if (id(start_sequence).is_running()) {
+        if (run && !id(relay_contactor).state) return std::string("Прогрев перед нагрузкой");
+        if (!run) return std::string("Запуск");
+      }
+      if (run && id(relay_contactor).state)
+        return std::string(remote ? "Работает по внешнему сигналу" : "Работает, запущен вручную");
+      if (id(stop_sequence).is_running() && id(relay_acc).state) return std::string("Охлаждение перед остановкой");
+      if (id(start_failed).state) return std::string("Не удалось завести");
+      if (run) return std::string(req ? "Работает" : "Работает без запроса");
+      return std::string(req ? "Запрос на запуск" : "Остановлен, ожидание");
+
+  - platform: wifi_info
+    ip_address:
+      name: "IP-адрес"
+      web_server: { sorting_group_id: grp_net, sorting_weight: 1 }
+    ssid:
+      name: "Сеть Wi-Fi"
+      web_server: { sorting_group_id: grp_net, sorting_weight: 2 }
+
+  - platform: version
+    name: "Версия прошивки"
+    hide_timestamp: false
+    web_server: { sorting_group_id: grp_net, sorting_weight: 5 }
+
+# ---------------------------------------------------------------------------
+# Логіка: ACC → пауза → до 3 спроб стартера → прогрів → контактор; зупинка: контактор → охолодження → ACC
+# ---------------------------------------------------------------------------
+script:
+  - id: stop_sequence
+    mode: restart
+    then:
+      - logger.log: "СТОП: розмикаємо контактор"
+      - script.stop: start_sequence
+      - switch.turn_off: relay_start
+      - switch.turn_off: relay_contactor
+      - delay: !lambda 'return (uint32_t) (id(cooldown_s).state * 1000);'
+      - logger.log: "СТОП: знімаємо ACC"
+      - switch.turn_off: relay_acc
+      - lambda: 'id(start_failed).publish_state(false);'
+
+  - id: start_sequence
+    mode: restart
+    then:
+      - lambda: 'id(start_failed).publish_state(false);'
+      - globals.set:
+          id: crank_attempts
+          value: '0'
+      - logger.log: "Подаємо ACC"
+      - switch.turn_on: relay_acc
+      # 3 с: датчику обертів треба 2 виміри; якщо двигун УЖЕ крутиться — стартер не вмикаємо.
+      - delay: 3s
+      - while:
+          condition:
+            lambda: |-
+              return (id(crank_attempts) < 3) && !id(engine_running).state;
+          then:
+            - globals.set:
+                id: crank_attempts
+                value: !lambda 'return id(crank_attempts) + 1;'
+            - logger.log: "Спроба прокрутки стартера"
+            - switch.turn_on: relay_start
+            - wait_until:
+                condition:
+                  lambda: 'return taho_rpm::fast_rpm() >= ${starter_release_rpm};'
+                timeout: 8s
+            - switch.turn_off: relay_start
+            - logger.log:
+                format: "Стартер відпущено, швидкі оберти %.0f"
+                args: ['taho_rpm::fast_rpm()']
+            - wait_until:
+                condition:
+                  binary_sensor.is_on: engine_running
+                timeout: 3s
+            - if:
+                condition:
+                  not:
+                    binary_sensor.is_on: engine_running
+                then:
+                  - delay: 5s
+      - if:
+          condition:
+            binary_sensor.is_on: engine_running
+          then:
+            - logger.log: "Двигун запущено, прогрів"
+            - wait_until:
+                condition:
+                  not:
+                    binary_sensor.is_on: engine_running
+                timeout: !lambda 'return (uint32_t) (id(warmup_s).state * 1000);'
+            - if:
+                condition:
+                  binary_sensor.is_on: engine_running
+                then:
+                  - logger.log: "Прогрів завершено — замикаємо контактор"
+                  - switch.turn_on: relay_contactor
+          else:
+            - logger.log: "Не вдалось завести за 3 спроби"
+            - lambda: 'id(start_failed).publish_state(true);'
+            - switch.turn_off: relay_acc
