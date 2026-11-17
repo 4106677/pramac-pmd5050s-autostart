@@ -1,0 +1,114 @@
+/* Shared styles: control page (web_server css_include) and Wi-Fi setup page (inlined by build_captive.py). */
+:root{
+  --bg:#f2f4f3;--card:#fff;--ink:#15191c;--muted:#66707a;--line:#e3e7e5;--soft:#f6f8f7;
+  --green:#1e8a4c;--green-bg:#e4f4ea;--amber:#c77700;--amber-bg:#fdf1dc;--red:#c62f2f;--red-bg:#fbe6e4;
+  --blue:#2266c4;--blue-bg:#e3edfb;--grey:#8a949c;--grey-bg:#eceff0;--track:#e6eae8;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.05)
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f1214;--card:#181c1f;--ink:#eef1f2;--muted:#98a2aa;--line:#2a3034;--soft:#1e2326;
+  --green:#3fbf73;--green-bg:#16301f;--amber:#f0a32c;--amber-bg:#33270f;--red:#f06060;--red-bg:#3a1818;
+  --blue:#6aa3f5;--blue-bg:#16253a;--grey:#7d878e;--grey-bg:#23292c;--track:#262c30;--shadow:none
+}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit}
+esp-app{display:none}
+.wrap{max-width:460px;margin:0 auto}
+.card{background:var(--card);border-radius:18px;box-shadow:var(--shadow);border:1px solid var(--line)}
+.hidden{display:none!important}
+
+.langs{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--card)}
+.langs button{border:0;background:none;padding:5px 11px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+.langs button.on{background:var(--ink);color:var(--bg)}
+
+/* ---------- control page ---------- */
+.app{padding:14px 14px 24px;display:flex;flex-direction:column;gap:12px}
+.top{display:flex;align-items:center;justify-content:space-between;padding:4px 2px;gap:10px}
+.top b{font-size:18px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 10px;white-space:nowrap}
+.pill i{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.pill.off i{background:var(--red)}
+.hero{padding:16px 16px 14px}
+.hero .st{display:flex;align-items:center;gap:10px}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--tone);box-shadow:0 0 0 5px var(--tone-bg);flex:none}
+.hero.pulse .dot{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 9px var(--tone-bg)}}
+.hero h2{margin:0;font-size:24px;line-height:1.15}
+.hero .sub{color:var(--muted);font-size:15px;margin:4px 0 0 22px;min-height:21px}
+.gauge{display:block;width:100%;max-width:300px;margin:6px auto 0}
+.gauge .knob{transition:cx .6s,cy .6s,opacity .3s}
+.gauge .val{font-size:44px;font-weight:700;fill:var(--ink);font-variant-numeric:tabular-nums}
+.gauge .unit{font-size:14px;fill:var(--muted);letter-spacing:.06em}
+.gauge .tick{font-size:11px;fill:var(--muted)}
+.banner{display:flex;gap:10px;padding:12px 14px;border-radius:14px;background:var(--red-bg);color:var(--red);font-size:15px}
+.banner svg{flex:none;margin-top:1px}
+.banner b{display:block;margin-bottom:2px}
+.banner span{color:var(--ink);opacity:.85}
+.big{width:100%;border:0;border-radius:16px;padding:18px;font-size:19px;font-weight:650;cursor:pointer;color:#fff;background:var(--green);transition:transform .08s,background .2s}
+.big:active{transform:scale(.985)}
+.big.stop{background:var(--red)}
+.big.confirm{background:var(--ink);color:var(--bg)}
+.big:disabled{background:var(--grey-bg);color:var(--muted);cursor:default;transform:none}
+.note{font-size:14px;color:var(--muted);text-align:center;margin:-4px 8px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{padding:12px 10px;display:flex;gap:9px;align-items:center;min-width:0}
+.tile .ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:var(--grey-bg);color:var(--grey);flex:none}
+.tile.on .ic{background:var(--t-bg);color:var(--t)}
+.tile .k{font-size:13px;line-height:1.2;color:var(--muted);overflow-wrap:anywhere}
+.tile .v{font-size:16px;font-weight:600;white-space:nowrap}
+.ic svg{width:20px;height:20px}
+details.card{padding:0}
+details summary{list-style:none;cursor:pointer;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;font-weight:600}
+details summary::-webkit-details-marker{display:none}
+details summary:after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin-right:4px;transition:transform .2s}
+details[open] summary:after{transform:rotate(-135deg)}
+.rows{padding:0 16px 6px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid var(--line);gap:12px}
+.row .k{color:var(--muted);font-size:15px}
+.row .k small{display:block;font-size:12px}
+.row .v{font-weight:600;font-variant-numeric:tabular-nums;text-align:right;overflow-wrap:anywhere}
+.row a{color:var(--blue);text-decoration:none;font-weight:600}
+.step{display:flex;align-items:center;border:1px solid var(--line);border-radius:12px;overflow:hidden;flex:none}
+.step button{width:44px;height:42px;border:0;background:var(--soft);font-size:22px;cursor:pointer}
+.step output{min-width:64px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums}
+.bars{display:inline-flex;gap:2px;align-items:flex-end;height:14px;vertical-align:-1px;margin-right:6px;flex:none}
+.bars i{width:4px;background:var(--line);border-radius:1px}
+.bars i.f{background:var(--ink)}
+.foot{display:flex;justify-content:center;padding-top:4px}
+.offline .hero,.offline .grid,.offline .big{opacity:.45;filter:grayscale(1)}
+
+/* ---------- Wi-Fi setup page ---------- */
+.wf{padding:18px 16px 28px}
+.wf .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px}
+.wf .logo{display:flex;align-items:center;gap:10px}
+.wf .logo .ic{width:40px;height:40px;border-radius:12px;background:var(--green-bg);color:var(--green);display:grid;place-items:center}
+.wf h2{font-size:22px;margin:0 0 4px}
+.wf p{color:var(--muted);margin:0 0 14px;font-size:15px}
+.nets{padding:4px 0}
+.net{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;border:0;background:none;text-align:left;cursor:pointer;border-top:1px solid var(--line)}
+.net:first-child{border-top:0}
+.net:active{background:var(--soft)}
+.net .n{flex:1;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.net svg{width:18px;height:18px;color:var(--muted);flex:none}
+.empty{padding:18px 16px;color:var(--muted);font-size:15px}
+.link{display:block;background:none;border:0;color:var(--blue);padding:12px 2px;font-size:15px;cursor:pointer;text-align:left;text-decoration:none}
+.back{background:none;border:0;color:var(--blue);padding:0;font-size:16px;cursor:pointer;margin-bottom:16px}
+.field{margin:0 0 14px}
+.field label{display:block;font-size:14px;color:var(--muted);margin-bottom:6px}
+.inp{display:flex;border:1.5px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden}
+.inp:focus-within{border-color:var(--green)}
+.inp input{flex:1;border:0;background:none;padding:14px;font-size:18px;outline:none;min-width:0}
+.inp button{border:0;background:none;padding:0 14px;color:var(--blue);font-size:15px;cursor:pointer}
+.chosen{display:flex;align-items:center;gap:10px;padding:14px 16px;margin-bottom:16px}
+.chosen .n{font-size:19px;font-weight:650;overflow-wrap:anywhere}
+.chosen .k{font-size:13px;color:var(--muted)}
+.err{color:var(--red);font-size:15px;margin:10px 0 0}
+.ok{text-align:center;padding-top:10px}
+.ok .ic{width:64px;height:64px;border-radius:50%;margin:0 auto 14px;display:grid;place-items:center;background:var(--green-bg);color:var(--green)}
+.ok ol{text-align:left;padding-left:22px;margin:16px 0;font-size:15px}
+.ok ol li{margin-bottom:8px}
+.ok .addr{font-weight:700;color:var(--green)}
+.ok .link{text-align:center;width:100%}
+.spin{width:18px;height:18px;border:2.5px solid var(--line);border-top-color:var(--green);border-radius:50%;animation:sp 1s linear infinite;display:inline-block;vertical-align:-4px;margin-right:8px}
+@keyframes sp{to{transform:rotate(360deg)}}

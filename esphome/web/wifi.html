@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Generator Pramac</title>
+<style>/*APP_CSS*/</style>
+</head>
+<body>
+<div class="wrap" id="root"></div>
+<script>
+// Wi-Fi setup page of the generator unit. build_captive.py inlines app.css and gzips this into
+// components/captive_portal/captive_index.h. API of the captive portal: GET /config.json (networks),
+// GET /wifisave?ssid=&psk= (save and connect). Served at "/" while the setup network is on, and at /wifi always.
+var T = {
+  ru: {h: 'Подключение к Wi-Fi', p: 'Выберите домашнюю сеть. Через неё вы будете управлять генератором с телефона.',
+    manual: 'Сети нет в списке? Ввести название вручную', refresh: 'Обновить список', searching: 'Ищем сети…',
+    none: 'Сети пока не найдены. Подождите несколько секунд и обновите список.', back: '‹ Все сети', net: 'Сеть',
+    other: 'Другая сеть', otherP: 'Введите название сети точно как в роутере.', ssid: 'Название сети',
+    pass: 'Пароль от этой сети', show: 'Показать', hide: 'Скрыть', open: 'Это открытая сеть без пароля.',
+    connect: 'Подключить', doneH: 'Подключаемся к «{s}»',
+    doneP: 'Через минуту сеть Generator-Pramac пропадёт. Это значит, что всё получилось.',
+    s1: 'Подключите телефон обратно к домашнему Wi-Fi.', s2: 'Откройте {a}',
+    s2b: 'На Android, если адрес не открылся, найдите «generator» в списке устройств роутера и откройте его IP.',
+    retry: 'Если через 2 минуты сеть Generator-Pramac снова появилась, пароль не подошёл. Подключитесь к ней и повторите.',
+    again: 'Ввести другую сеть', err: 'Не удалось отправить. Проверьте, что телефон подключён к блоку.',
+    toApp: '‹ К генератору', need: 'Введите название сети',
+    doneApp: 'Блок переключается на новую сеть, эта страница сейчас перестанет отвечать.', s1App: 'Подключите телефон к сети «{s}».'},
+  uk: {h: 'Підключення до Wi-Fi', p: 'Виберіть домашню мережу. Через неї ви керуватимете генератором з телефона.',
+    manual: 'Мережі немає у списку? Ввести назву вручну', refresh: 'Оновити список', searching: 'Шукаємо мережі…',
+    none: 'Мереж поки не знайдено. Зачекайте кілька секунд і оновіть список.', back: '‹ Усі мережі', net: 'Мережа',
+    other: 'Інша мережа', otherP: 'Введіть назву мережі точно як у роутері.', ssid: 'Назва мережі',
+    pass: 'Пароль від цієї мережі', show: 'Показати', hide: 'Сховати', open: 'Це відкрита мережа без пароля.',
+    connect: 'Підключити', doneH: 'Підключаємося до «{s}»',
+    doneP: 'За хвилину мережа Generator-Pramac зникне. Це означає, що все вийшло.',
+    s1: 'Підключіть телефон назад до домашнього Wi-Fi.', s2: 'Відкрийте {a}',
+    s2b: 'На Android, якщо адреса не відкрилася, знайдіть «generator» у списку пристроїв роутера і відкрийте його IP.',
+    retry: 'Якщо за 2 хвилини мережа Generator-Pramac знову з’явилася, пароль не підійшов. Підключіться до неї і повторіть.',
+    again: 'Ввести іншу мережу', err: 'Не вдалося надіслати. Перевірте, що телефон підключений до блока.',
+    toApp: '‹ До генератора', need: 'Введіть назву мережі',
+    doneApp: 'Блок перемикається на нову мережу, ця сторінка зараз перестане відповідати.', s1App: 'Підключіть телефон до мережі «{s}».'},
+  en: {h: 'Connect to Wi-Fi', p: 'Choose your home network. You will control the generator from your phone through it.',
+    manual: 'Network not listed? Enter the name manually', refresh: 'Refresh list', searching: 'Looking for networks…',
+    none: 'No networks found yet. Wait a few seconds and refresh the list.', back: '‹ All networks', net: 'Network',
+    other: 'Other network', otherP: 'Enter the network name exactly as in your router.', ssid: 'Network name',
+    pass: 'Password for this network', show: 'Show', hide: 'Hide', open: 'This is an open network without a password.',
+    connect: 'Connect', doneH: 'Connecting to “{s}”',
+    doneP: 'In about a minute the Generator-Pramac network will disappear. That means it worked.',
+    s1: 'Connect your phone back to your home Wi-Fi.', s2: 'Open {a}',
+    s2b: 'On Android, if the address does not open, find “generator” in your router’s device list and open its IP.',
+    retry: 'If the Generator-Pramac network is back after 2 minutes, the password was wrong. Connect to it and try again.',
+    again: 'Enter another network', err: 'Could not send. Make sure the phone is connected to the unit.',
+    toApp: '‹ Back to the generator', need: 'Enter the network name',
+    doneApp: 'The unit is switching to the new network, this page will stop responding now.', s1App: 'Connect your phone to “{s}”.'}
+};
+var LANGS = [['ru', 'RU'], ['uk', 'UA'], ['en', 'EN']];
+var ICON = {
+  wifi: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+  check: '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>'
+};
+var lang = pickLang(), nets = null, view = ['list'];
+var fromApp = location.pathname === '/wifi';
+
+function pickLang() {
+  try { var l = localStorage.getItem('gen-lang'); if (T[l]) return l; } catch (e) {}
+  var ls = navigator.languages || [navigator.language || ''];
+  for (var i = 0; i < ls.length; i++) {
+    var c = String(ls[i]).slice(0, 2).toLowerCase();
+    if (c === 'uk') return 'uk';
+    if (c === 'ru' || c === 'be') return 'ru';
+    if (c === 'en') return 'en';
+  }
+  return 'en';
+}
+function t(k) { return T[lang][k]; }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+function bars(r) {
+  var n = r > -55 ? 4 : r > -65 ? 3 : r > -75 ? 2 : 1;
+  return '<span class="bars">' + [6, 9, 12, 14].map(function (h, i) { return '<i style="height:' + h + 'px" class="' + (i < n ? 'f' : '') + '"></i>'; }).join('') + '</span>';
+}
+function head() {
+  return '<div class="head"><div class="logo"><div class="ic">' + ICON.wifi + '</div><b>Generator Pramac</b></div><span class="langs">' +
+    LANGS.map(function (l) { return '<button data-l="' + l[0] + '" class="' + (l[0] === lang ? 'on' : '') + '">' + l[1] + '</button>'; }).join('') + '</span></div>';
+}
+function show(v) { view = v; draw(); window.scrollTo(0, 0); }
+
+function draw() {
+  document.documentElement.lang = lang;
+  var root = document.getElementById('root'), v = view[0], h = '<div class="wf' + (v === 'done' ? ' ok' : '') + '">';
+  if (v === 'list') {
+    h += head() + (fromApp ? '<a class="link" href="/" style="padding-top:0">' + t('toApp') + '</a>' : '') +
+      '<h2>' + t('h') + '</h2><p>' + t('p') + '</p><div class="card nets">';
+    if (nets === null) h += '<div class="empty"><span class="spin"></span>' + t('searching') + '</div>';
+    else if (!nets.length) h += '<div class="empty">' + t('none') + '</div>';
+    else h += nets.map(function (n, i) {
+      return '<button class="net" data-i="' + i + '"><span class="n">' + esc(n.ssid) + '</span>' + (n.lock ? ICON.lock : '') + bars(n.rssi) + '</button>';
+    }).join('');
+    h += '</div><button class="link" id="manual">' + t('manual') + '</button><button class="link" id="rescan">' + t('refresh') + '</button>';
+  } else if (v === 'pass') {
+    var n = view[1], open = n && !n.lock;
+    h += '<button class="back" id="back">' + t('back') + '</button>';
+    if (!n) h += '<h2>' + t('other') + '</h2><p>' + t('otherP') + '</p><div class="field"><label for="ssid">' + t('ssid') +
+      '</label><div class="inp"><input id="ssid" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="next"></div></div>';
+    else h += '<div class="card chosen">' + bars(n.rssi) + '<div><div class="k">' + t('net') + '</div><div class="n">' + esc(n.ssid) + '</div></div></div>';
+    h += open ? '<p>' + t('open') + '</p>' :
+      '<div class="field"><label for="psk">' + t('pass') + '</label><div class="inp"><input id="psk" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="go"><button id="eye" type="button">' + t('show') + '</button></div></div>';
+    h += '<button class="big" id="go">' + t('connect') + '</button><div class="err hidden" id="err"></div>';
+  } else {
+    h += '<div class="ic">' + ICON.check + '</div><h2>' + esc(t('doneH').replace('{s}', view[1])) + '</h2><p>' + t(fromApp ? 'doneApp' : 'doneP') + '</p><ol><li>' + (fromApp ? esc(t('s1App').replace('{s}', view[1])) : t('s1')) + '</li><li>' +
+      t('s2').replace('{a}', '<span class="addr">http://generator.local</span>') + '<br><small style="color:var(--muted)">' + t('s2b') + '</small></li></ol><p>' + t('retry') +
+      '</p><button class="link" id="again">' + t('again') + '</button>';
+  }
+  root.innerHTML = h + '</div>';
+  wire(v);
+}
+
+function wire(v) {
+  var q = function (s) { return document.getElementById(s); };
+  Array.prototype.forEach.call(document.querySelectorAll('.langs button'), function (b) {
+    b.onclick = function () { lang = b.getAttribute('data-l'); try { localStorage.setItem('gen-lang', lang); } catch (e) {} draw(); };
+  });
+  if (v === 'list') {
+    Array.prototype.forEach.call(document.querySelectorAll('.net'), function (b) {
+      b.onclick = function () { show(['pass', nets[+b.getAttribute('data-i')]]); };
+    });
+    q('manual').onclick = function () { show(['pass', null]); };
+    q('rescan').onclick = function () { nets = null; draw(); setTimeout(load, 600); };
+  } else if (v === 'pass') {
+    var n = view[1], psk = q('psk'), ssidIn = q('ssid'), eye = q('eye');
+    q('back').onclick = function () { show(['list']); };
+    if (eye) eye.onclick = function () {
+      var hidden = psk.type === 'password';
+      psk.type = hidden ? 'text' : 'password'; eye.textContent = hidden ? t('hide') : t('show');
+    };
+    if (ssidIn) ssidIn.onkeydown = function (e) { if (e.key === 'Enter') psk.focus(); };
+    if (psk) psk.onkeydown = function (e) { if (e.key === 'Enter') q('go').click(); };
+    q('go').onclick = function () {
+      var ssid = n ? n.ssid : ssidIn.value.trim(), err = q('err');
+      if (!ssid) { err.textContent = t('need'); err.classList.remove('hidden'); return; }
+      var url = '/wifisave?ssid=' + encodeURIComponent(ssid) + '&psk=' + encodeURIComponent(psk ? psk.value : '');
+      q('go').disabled = true;
+      fetch(url, {redirect: 'manual'}).then(function () { show(['done', ssid]); })
+        .catch(function () {
+          // the unit may switch networks before answering: a lost connection here usually means it worked
+          show(['done', ssid]);
+        });
+    };
+    var first = ssidIn || psk;
+    if (first) try { first.focus({preventScroll: true}); } catch (e) { first.focus(); }
+  } else {
+    q('again').onclick = function () { nets = null; show(['list']); load(); };
+  }
+}
+
+function load() {
+  fetch('/config.json', {cache: 'no-store'}).then(function (r) { return r.json(); }).then(function (c) {
+    var seen = {}, list = [];
+    (c.aps || []).forEach(function (a) {
+      if (!a || !a.ssid) return;
+      if (seen[a.ssid] && seen[a.ssid].rssi >= a.rssi) return;
+      seen[a.ssid] = a;
+    });
+    for (var k in seen) list.push(seen[k]);
+    list.sort(function (a, b) { return b.rssi - a.rssi; });
+    nets = list;
+  }).catch(function () { nets = []; }).then(function () { if (view[0] === 'list') draw(); });
+}
+
+draw();
+load();
+</script>
+</body>
+</html>

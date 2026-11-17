@@ -5,7 +5,9 @@
 #   у флеші плати й переживає перезавантаження та оновлення прошивки.
 # - Після підключення до дому точка вимикається, а сторінка генератора — http://generator.local
 #   (або IP з роутера). Якщо домашня мережа пропала більше ніж на 1 хв, точка вмикається знову.
-# - Сторінка російською: стан, оберти, моточаси, запуск/зупинка, час прогріву й охолодження.
+# - Своя сторінка (web/app.js + web/app.css) трьома мовами RU/UA/EN: стан, шкала обертів, моточаси,
+#   запуск/зупинка, час прогріву й охолодження, мережа. Сторінка вибору Wi-Fi — своя копія captive_portal
+#   (components/captive_portal, сторінка з web/wifi.html, збирається web/build_captive.py); також на /wifi.
 # - Основне керування — вхід REMOTE (сухий контакт): замкнений = генератор потрібен.
 # - Перезавантаження через втрату Wi-Fi вимкнене (reboot_timeout: 0s): інакше плата глушила б генератор.
 #
@@ -58,22 +60,27 @@ wifi:
   reboot_timeout: 0s
   power_save_mode: none
 
+# Своя сторінка вибору Wi-Fi замість стандартної (див. components/captive_portal).
+external_components:
+  - source: { type: local, path: components }
+    components: [captive_portal]
+
 captive_portal:
 
+# Стандартний API ESPHome (/events, /switch/...), а сторінку малюють наші web/app.js і web/app.css,
+# зашиті в плату: інтернет не потрібен. js_url порожній — нічого не вантажиться з esphome.io.
 web_server:
   port: 80
   version: 3
-  local: true      # скрипти сторінки зашиті в плату: працює і без інтернету
+  js_url: ""
+  js_include: web/app.js
+  css_include: web/app.css
   ota: false       # прошивку через сторінку не заливати
   log: false
-  sorting_groups:
-    - { id: grp_control, name: "Управление", sorting_weight: 10 }
-    - { id: grp_state,   name: "Состояние",  sorting_weight: 20 }
-    - { id: grp_setup,   name: "Настройки",  sorting_weight: 30 }
-    - { id: grp_net,     name: "Сеть и плата", sorting_weight: 40 }
 
-# Назви російською. ESPHome будує ключ і адресу сутності з назви, кирилиця стає "_", тому дві назви
-# з однаковою кількістю літер у словах в одному домені плутаються. Нова назва — перевірити.
+# Назви російською (так їх бачить Home Assistant). web/app.js знаходить сутності САМЕ ЗА НАЗВОЮ (NAMES),
+# тож нова назва — поміняти і там. ESPHome будує ключ сутності з назви, кирилиця стає "_", тому дві
+# назви з однаковою кількістю літер у словах в одному домені плутаються. Нова назва — перевірити.
 
 globals:
   - id: crank_attempts
@@ -110,7 +117,6 @@ switch:
     icon: "mdi:engine"
     optimistic: true
     restore_mode: ALWAYS_OFF
-    web_server: { sorting_group_id: grp_control, sorting_weight: 1 }
     turn_on_action:
       - logger.log: "Запуск зі сторінки"
       - script.stop: stop_sequence
@@ -130,7 +136,6 @@ binary_sensor:
     id: remote_signal
     name: "Внешний сигнал запуска"
     icon: "mdi:electric-switch"
-    web_server: { sorting_group_id: grp_state, sorting_weight: 2 }
     pin:
       number: GPIO25
       mode: INPUT_PULLUP
@@ -154,7 +159,6 @@ binary_sensor:
     id: engine_running
     name: "Двигатель работает"
     device_class: running
-    web_server: { sorting_group_id: grp_state, sorting_weight: 3 }
     lambda: |-
       return id(engine_rpm).state > ${running_rpm_threshold};
     filters:
@@ -175,7 +179,6 @@ binary_sensor:
     id: contactor_closed
     name: "Нагрузка подключена"
     icon: "mdi:transmission-tower-export"
-    web_server: { sorting_group_id: grp_state, sorting_weight: 4 }
     lambda: |-
       return id(relay_contactor).state;
 
@@ -183,7 +186,6 @@ binary_sensor:
     id: start_failed
     name: "Ошибка запуска"
     device_class: problem
-    web_server: { sorting_group_id: grp_state, sorting_weight: 5 }
 
 # ---------------------------------------------------------------------------
 # Налаштування зі сторінки (зберігаються у флеші)
@@ -200,7 +202,6 @@ number:
     optimistic: true
     restore_value: true
     mode: box
-    web_server: { sorting_group_id: grp_setup, sorting_weight: 1 }
 
   - platform: template
     id: cooldown_s
@@ -213,7 +214,6 @@ number:
     optimistic: true
     restore_value: true
     mode: box
-    web_server: { sorting_group_id: grp_setup, sorting_weight: 2 }
 
 # ---------------------------------------------------------------------------
 # Оберти (taho_rpm.h, вхід TAHO через LM393 на D14), моточаси, Wi-Fi
@@ -227,7 +227,6 @@ sensor:
     icon: "mdi:engine"
     state_class: measurement
     update_interval: 1s
-    web_server: { sorting_group_id: grp_state, sorting_weight: 6 }
     lambda: |-
       float by_count = 0;
       return taho_rpm::update(&by_count);
@@ -242,21 +241,18 @@ sensor:
     state_class: total_increasing
     accuracy_decimals: 1
     icon: "mdi:timer-outline"
-    web_server: { sorting_group_id: grp_state, sorting_weight: 7 }
     filters:
       - multiply: 0.00027777778   # секунди -> години
 
   - platform: wifi_signal
     name: "Уровень Wi-Fi"
     update_interval: 60s
-    web_server: { sorting_group_id: grp_net, sorting_weight: 3 }
 
   - platform: uptime
     name: "Плата работает"
     update_interval: 60s
     unit_of_measurement: "мин"
     accuracy_decimals: 0
-    web_server: { sorting_group_id: grp_net, sorting_weight: 4 }
     filters:
       - multiply: 0.0166666667
 
@@ -266,7 +262,6 @@ text_sensor:
     name: "Состояние"
     icon: "mdi:state-machine"
     update_interval: 1s
-    web_server: { sorting_group_id: grp_state, sorting_weight: 1 }
     lambda: |-
       bool remote = id(remote_signal).state;
       bool req = remote || id(manual_run).state;
@@ -290,15 +285,12 @@ text_sensor:
   - platform: wifi_info
     ip_address:
       name: "IP-адрес"
-      web_server: { sorting_group_id: grp_net, sorting_weight: 1 }
     ssid:
       name: "Сеть Wi-Fi"
-      web_server: { sorting_group_id: grp_net, sorting_weight: 2 }
 
   - platform: version
     name: "Версия прошивки"
     hide_timestamp: false
-    web_server: { sorting_group_id: grp_net, sorting_weight: 5 }
 
 # ---------------------------------------------------------------------------
 # Логіка: ACC → пауза → до 3 спроб стартера → прогрів → контактор; зупинка: контактор → охолодження → ACC
