@@ -1,7 +1,6 @@
 # Секція дашборда Home Assistant (вигляд "sections") для генератора 2: плата v5.1, пристрій ESPHome "genset".
 # Назви сутностей у прошивці російською, entity_id HA побудував з них (префікс ulitsa_ — зона "Улица").
 # Якщо якась плитка показує "Сутність недоступна", звірте entity_id у Налаштування → Пристрої → Genset.
-# "Состояние" — текстовий датчик прошивки: стартер / прогрів / працює з навантаженням / охолодження / помилка.
 type: grid
 cards:
   - type: heading
@@ -10,13 +9,7 @@ cards:
     icon: mdi:engine
     badges:
       - { type: entity, entity: binary_sensor.ulitsa_genset_dvigatel_rabotaet, show_state: true, show_icon: true, color: green }
-      - { type: entity, entity: binary_sensor.ulitsa_genset_vneshnii_signal_zapuska, show_state: false, show_icon: true, color: blue }
-  - type: tile
-    entity: sensor.ulitsa_genset_sostoianie
-    name: Состояние
-    icon: mdi:information-outline
-    color: primary
-    grid_options: { columns: 12 }
+      - { type: entity, entity: binary_sensor.ulitsa_genset_vneshnii_signal_zapuska, show_state: false, show_icon: true, color: blue, name: Сигнал }
   # видно лише коли двигун не завівся за 3 спроби
   - type: tile
     entity: binary_sensor.ulitsa_genset_oshibka_zapuska
@@ -54,7 +47,6 @@ cards:
       action: toggle
       confirmation: { text: "Запустить или заглушить генератор?" }
     icon_tap_action: *confirm_toggle
-  - { type: heading, heading: Реле и датчик оборотов, heading_style: subtitle }
+  - { type: heading, heading: Реле, heading_style: subtitle }
   - { type: tile, entity: switch.ulitsa_genset_rele_acc, name: Реле ACC, icon: mdi:key-variant, grid_options: { columns: 6 }, tap_action: { action: more-info }, icon_tap_action: { action: more-info } }
   - { type: tile, entity: switch.ulitsa_genset_rele_start, name: Реле START, icon: mdi:car-key, grid_options: { columns: 6 }, tap_action: { action: more-info }, icon_tap_action: { action: more-info } }
-  - { type: tile, entity: sensor.ulitsa_genset_taho_impulsov_min, name: "TAHO, импульсов/мин", icon: mdi:sine-wave, grid_options: { columns: 12 } }
