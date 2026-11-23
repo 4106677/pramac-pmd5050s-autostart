@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="uk">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -54,7 +54,7 @@ var T = {
     toApp: '‹ Back to the generator', need: 'Enter the network name',
     doneApp: 'The unit is switching to the new network, this page will stop responding now.', s1App: 'Connect your phone to “{s}”.'}
 };
-var LANGS = [['ru', 'RU'], ['uk', 'UA'], ['en', 'EN']];
+var LANGS = [['uk', 'UA'], ['ru', 'RU'], ['en', 'EN']];
 var ICON = {
   wifi: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></svg>',
   lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
@@ -63,16 +63,10 @@ var ICON = {
 var lang = pickLang(), nets = null, view = ['list'];
 var fromApp = location.pathname === '/wifi';
 
+// українська за замовчуванням; інша мова — лише якщо її вибрали перемикачем
 function pickLang() {
   try { var l = localStorage.getItem('gen-lang'); if (T[l]) return l; } catch (e) {}
-  var ls = navigator.languages || [navigator.language || ''];
-  for (var i = 0; i < ls.length; i++) {
-    var c = String(ls[i]).slice(0, 2).toLowerCase();
-    if (c === 'uk') return 'uk';
-    if (c === 'ru' || c === 'be') return 'ru';
-    if (c === 'en') return 'en';
-  }
-  return 'en';
+  return 'uk';
 }
 function t(k) { return T[lang][k]; }
 function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }

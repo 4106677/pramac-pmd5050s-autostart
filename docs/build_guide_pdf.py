@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Owner guide PDF: one A4 page per language (RU, UA, EN) from docs/owner-guide-{ru,uk,en}.md,
+"""Owner guide PDF: one A4 page per language (UA, RU, EN) from docs/owner-guide-{uk,ru,en}.md,
 with the Wi-Fi name / password / page address in a box at the top of each page.
 
 usage: python3 docs/build_guide_pdf.py <setup network password> [out.pdf]
@@ -128,7 +128,7 @@ def language_story(code):
     return story
 
 
-ORDER = ["ru", "uk", "en"]
+ORDER = ["uk", "ru", "en"]
 story = []
 for i, code in enumerate(ORDER):
     if i:
@@ -147,7 +147,7 @@ def footer(c, d):
 
 
 doc = SimpleDocTemplate(out, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=13 * mm,
-                        bottomMargin=15 * mm, title="Pramac generator autostart — owner's guide (RU / UA / EN)",
+                        bottomMargin=15 * mm, title="Pramac generator autostart — owner's guide (UA / RU / EN)",
                         author="", subject="Owner's guide")
 doc.build(story, onFirstPage=footer, onLaterPages=footer)
 print("wrote", out, "pages:", doc.page)

@@ -12,7 +12,7 @@
 ## Connecting to your home Wi-Fi (once)
 1. Switch on the generator with the unit (it is powered from the generator battery).
 2. On your phone, find the **Generator-Pramac** network; the password is on the unit's label.
-3. The setup window opens (if not, open **http://192.168.4.1** in a browser). Language: RU / UA / EN at the top.
+3. The setup window opens (if not, open **http://192.168.4.1** in a browser). Language: UA / RU / EN at the top.
 4. Tap your home network, enter its password, tap **Connect**.
 5. The unit joins your home network and the Generator-Pramac network disappears.
 
@@ -30,7 +30,7 @@ On the page:
 - Tiles: external signal, engine running, load connected, engine hours.
 - **Settings** — warm-up time before the load is connected and cool-down time before stopping (− / + buttons).
 - **Network & board** — network, signal, IP address, firmware version and **Change Wi-Fi network**.
-- At the bottom — page language: RU / UA / EN.
+- At the bottom — page language: UA / RU / EN.
 
 ## Home Assistant (if you have it)
 The device is discovered automatically (ESPHome integration) or can be added manually at generator.local,

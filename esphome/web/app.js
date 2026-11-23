@@ -1,4 +1,4 @@
-// Control page of the generator unit (generator.yaml, web_server js_include). Languages: RU / UA / EN.
+// Control page of the generator unit (generator.yaml, web_server js_include). Languages: UA (default) / RU / EN.
 // Talks to the stock ESPHome web API: SSE /events for states, POST /<domain>/<object_id>/<action>.
 // Entities are found by their firmware NAME (sent once per connection): if a name changes in
 // generator.yaml, change it in NAMES too.
@@ -85,7 +85,7 @@ const T = {
     },
   },
 };
-const LANGS = [['ru', 'RU'], ['uk', 'UA'], ['en', 'EN']];
+const LANGS = [['uk', 'UA'], ['ru', 'RU'], ['en', 'EN']];
 const LOCALE = { ru: 'ru-RU', uk: 'uk-UA', en: 'en-US' };
 
 // firmware status text (Russian, also shown in Home Assistant) -> [key, tone, pulsing]
@@ -113,15 +113,10 @@ const byId = {};       // "sensor-xxx" -> key
 let lastSeen = 0, everSeen = false, confirmTimer = null, pending = {}, sendTimer = {};
 const open = { settings: false, net: false };
 
+// українська за замовчуванням; інша мова — лише якщо її вибрали перемикачем
 function pickLang() {
   try { const l = localStorage.getItem('gen-lang'); if (T[l]) return l; } catch (e) { /* private mode */ }
-  for (const l of navigator.languages || [navigator.language || '']) {
-    const c = String(l).slice(0, 2).toLowerCase();
-    if (c === 'uk') return 'uk';
-    if (c === 'ru' || c === 'be') return 'ru';
-    if (c === 'en') return 'en';
-  }
-  return 'en';
+  return 'uk';
 }
 const t = (k) => T[lang][k];
 const $ = (s) => document.querySelector(s);
